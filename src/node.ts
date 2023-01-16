@@ -24,6 +24,40 @@ function sendMessage(socket: net.Socket, message: object) {
     socket.write(canonicalize(message) + '\n');
 };
 
+function respond(socket: net.Socket, message: any) {
+    switch (message.type) {
+        case 'hello':
+            break;
+        case 'error':
+            break;
+        case 'getpeers':
+            break;
+        case 'peers':
+            break;
+        case 'getobject':
+            break;
+        case 'ihaveobject':
+            break;
+        case 'object':
+            break;
+        case 'getmempool':
+            break;
+        case 'mempool':
+            break;
+        case 'getchaintip':
+            break;
+        case 'chaintip':
+            break;
+        default:
+            sendMessage(socket, {
+                type: 'error',
+                name: 'INVALID_FORMAT',
+                message: 'Invalid message type.',
+            });
+            break;
+    }
+}
+
 /* SERVER SIDE */
 
 const server = net.createServer(socket => {
@@ -34,8 +68,10 @@ const server = net.createServer(socket => {
 
     let receivedHello = false;
     let buffer = '';
+    let timeoutId: NodeJS.Timeout;
 
     socket.on('data', data => {
+        clearTimeout(timeoutId);
         buffer += data;
         const messages = buffer.split('\n');
         if (messages.length > 1) {
@@ -56,37 +92,7 @@ const server = net.createServer(socket => {
                             receivedHello = true;
                         }
                     } else {
-                        switch (message.type) {
-                            case 'hello':
-                                break;
-                            case 'error':
-                                break;
-                            case 'getpeers':
-                                break;
-                            case 'peers':
-                                break;
-                            case 'getobject':
-                                break;
-                            case 'ihaveobject':
-                                break;
-                            case 'object':
-                                break;
-                            case 'getmempool':
-                                break;
-                            case 'mempool':
-                                break;
-                            case 'getchaintip':
-                                break;
-                            case 'chaintip':
-                                break;
-                            default:
-                                sendMessage(socket, {
-                                    type: 'error',
-                                    name: 'INVALID_FORMAT',
-                                    message: 'Invalid message type.',
-                                });
-                                break;
-                        }
+                        respond(socket, message);
                     }
                 } catch (e) {
                     console.error(e);
@@ -102,6 +108,16 @@ const server = net.createServer(socket => {
                 }
             }
             buffer = messages[messages.length - 1];
+        }
+        if (buffer.length) {
+            timeoutId = setTimeout(() => {
+                sendMessage(socket, {
+                    type: 'error',
+                    name: 'INVALID_FORMAT',
+                    message: 'Timeout',
+                });
+                socket.end();
+            }, 10000);
         }
     });
 
