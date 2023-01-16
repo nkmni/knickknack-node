@@ -72,13 +72,13 @@ const server = net.createServer(socket => {
     let timeoutId: NodeJS.Timeout;
 
     socket.on('data', data => {
-        if (waiting) {
-            clearTimeout(timeoutId);
-            waiting = false;
-        }
         buffer += data;
         const messages = buffer.split('\n');
         if (messages.length > 1) {
+            if (waiting) {
+                clearTimeout(timeoutId);
+                waiting = false;
+            }
             for (const m of messages.slice(0, -1)) {
                 console.log(`Client ${address} sent: ${m}`);
                 try {
@@ -113,7 +113,7 @@ const server = net.createServer(socket => {
             }
             buffer = messages[messages.length - 1];
         }
-        if (buffer.length) {
+        if (buffer.length && !waiting) {
             waiting = true;
             timeoutId = setTimeout(() => {
                 sendMessage(socket, {
