@@ -3,7 +3,7 @@ import { canonicalize } from 'json-canonicalize';
 
 /* CONSTANTS */
 
-const HOST = '0.0.0.0';
+const HOST = '45.77.3.115';
 const PORT = 18018;
 
 const BOOTSTRAP_PEERS = [
