@@ -68,10 +68,14 @@ const server = net.createServer(socket => {
 
     let receivedHello = false;
     let buffer = '';
+    let waiting = false;
     let timeoutId: NodeJS.Timeout;
 
     socket.on('data', data => {
-        clearTimeout(timeoutId);
+        if (waiting) {
+            clearTimeout(timeoutId);
+            waiting = false;
+        }
         buffer += data;
         const messages = buffer.split('\n');
         if (messages.length > 1) {
@@ -110,6 +114,7 @@ const server = net.createServer(socket => {
             buffer = messages[messages.length - 1];
         }
         if (buffer.length) {
+            waiting = true;
             timeoutId = setTimeout(() => {
                 sendMessage(socket, {
                     type: 'error',
