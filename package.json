@@ -4,8 +4,7 @@
   "description": "EE 374, Win. '23, Stanford Univ.",
   "main": "index.js",
   "scripts": {
-    "server": "ts-node --project tsconfig.json src/server.ts",
-    "client": "ts-node --project tsconfig.json src/client.ts"
+    "start": "ts-node --project tsconfig.json src/node.ts"
   },
   "repository": {
     "type": "git",
