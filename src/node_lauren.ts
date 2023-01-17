@@ -200,7 +200,6 @@ export class Node {
     }
 
     sendMessage(socket: net.Socket, message: object) {
-        console.log(`Client ${socket.remoteAddress}:${socket.remotePort} sent ${message}`);
         socket.write(canonicalize(message) + '\n');
     };
     
