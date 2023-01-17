@@ -60,16 +60,21 @@ function respond(socket: net.Socket, message: any) {
 
 /* SERVER SIDE */
 
-const server = net.createServer(socket => {
-    sendMessage(socket, GREETING);
+// have some other class called peerManager that keeps track locally
 
+const server = net.createServer(socket => {
     const address = `${socket.remoteAddress}:${socket.remotePort}`;
     console.log(`Client connected: ${address}`);
+
+    // add this client to discovered peers
+    // new ConnectedPeer (socket, peerManager)
 
     let receivedHello = false;
     let buffer = '';
     let waiting = false;
     let timeoutId: NodeJS.Timeout;
+
+    sendMessage(socket, GREETING);
 
     socket.on('data', data => {
         buffer += data;
@@ -143,6 +148,9 @@ server.listen(PORT, HOST, () => {
 
 let sockets: net.Socket[] = [];
 
+// connect peers in peer manager
+
+// then, connect to hardcoded peers
 for (const p of BOOTSTRAP_PEERS) {
     let socket = new net.Socket();
     sockets.push(socket);
