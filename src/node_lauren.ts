@@ -211,6 +211,8 @@ export class Node {
             case 'error':
                 break;
             case 'getpeers':
+                const getPeers = { "type": "peers", "peers": this.discoveredPeers};
+                this.sendMessage(socket, getPeers);
                 break;
             case 'peers':
                 // ensure well-formatted peer address, else: don't include
