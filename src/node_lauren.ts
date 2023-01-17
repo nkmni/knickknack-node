@@ -44,6 +44,7 @@ export class Node {
 
             // Received data from client
             socket.on('data', data => {
+                const address = `${socket.remoteAddress}:${socket.remotePort}`;
                 buffer += data;
                 const messages = buffer.split('\n');
                 if (messages.length > 1) {
@@ -123,7 +124,9 @@ export class Node {
             const [ip, port] = p.split(':');
             socket.connect(Number(port), ip, () => {
                 console.log('Connected to server');
+                console.log('Sent hello');
                 this.sendMessage(socket, GREETING);
+                console.log('Sent getpeers');
                 this.sendMessage(socket, GETPEERS);
             });
 
@@ -135,6 +138,7 @@ export class Node {
             let timeoutId: NodeJS.Timeout;{}
 
             socket.on('data', data => {
+                const address = `${socket.remoteAddress}:${socket.remotePort}`;
                 buffer += data;
                 const messages = buffer.split('\n');
                 if (messages.length > 1) {
@@ -214,6 +218,7 @@ export class Node {
                 break;
             case 'peers':
                 // ensure well-formatted peer address, else: don't include
+                console.log('Received peers msg back');
                 for (const peer of message.peers) {
                     const [ip, port] = peer.split(':');
                     if (!ip || (isIP(ip) == 0 && !isValidDomain(ip))) break;
