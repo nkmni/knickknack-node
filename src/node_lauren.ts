@@ -29,8 +29,7 @@ export class Node {
     constructor() {
         /* Server Side */
         const server = net.createServer(socket => {    
-            const address = `${socket.remoteAddress}:${socket.remotePort}`;
-            console.log(`Client connected: ${address}`);
+            console.log(`Client connected: ${socket.remoteAddress}:${socket.remotePort}`);
 
             // Send 'hello' message
             this.sendMessage(socket, GREETING);
@@ -101,12 +100,12 @@ export class Node {
         
             // On Error
             socket.on('error', error => {
-                console.error(`Client ${address} error: ${error}`);
+                console.error(`Client ${socket.remoteAddress}:${socket.remotePort} error: ${error}`);
             });
         
             // Connection closed
             socket.on('close', () => {
-                console.log(`Client ${address} disconnected`);
+                console.log(`Client ${socket.remoteAddress}:${socket.remotePort} disconnected`);
             });
         });
         
@@ -124,18 +123,14 @@ export class Node {
             const [ip, port] = p.split(':');
             socket.connect(Number(port), ip, () => {
                 console.log('Connected to server');
-                console.log('Sent hello');
                 this.sendMessage(socket, GREETING);
-                console.log('Sent getpeers');
                 this.sendMessage(socket, GETPEERS);
             });
-
-            const address = `${socket.remoteAddress}:${socket.remotePort}`;
 
             let receivedHello = false;
             let buffer = '';
             let waiting = false;
-            let timeoutId: NodeJS.Timeout;{}
+            let timeoutId: NodeJS.Timeout;
 
             socket.on('data', data => {
                 const address = `${socket.remoteAddress}:${socket.remotePort}`;
@@ -205,6 +200,7 @@ export class Node {
     }
 
     sendMessage(socket: net.Socket, message: object) {
+        console.log(`Client ${socket.remoteAddress}:${socket.remotePort} sent ${message}`);
         socket.write(canonicalize(message) + '\n');
     };
     
@@ -218,7 +214,6 @@ export class Node {
                 break;
             case 'peers':
                 // ensure well-formatted peer address, else: don't include
-                console.log('Received peers msg back');
                 for (const peer of message.peers) {
                     const [ip, port] = peer.split(':');
                     if (!ip || (isIP(ip) == 0 && !isValidDomain(ip))) break;
