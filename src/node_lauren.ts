@@ -54,6 +54,7 @@ export class Node {
                     for (const m of messages.slice(0, -1)) {
                         console.log(`Client ${address} sent: ${m}`);
                         try {
+                            // TODO: Ed Post #20: Need more rigorous msg validation
                             const message = JSON.parse(m);
                             if (!receivedHello) {
                                 if (message.type !== 'hello' || message.version !== '0.9.0') {
@@ -144,6 +145,7 @@ export class Node {
                     for (const m of messages.slice(0, -1)) {
                         console.log(`Client ${address} sent: ${m}`);
                         try {
+                            // TODO: More rigorous JSON testing, as above
                             const message = JSON.parse(m);
                             if (!receivedHello) {
                                 if (message.type !== 'hello' || message.version !== '0.9.0') {
