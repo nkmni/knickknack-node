@@ -219,6 +219,7 @@ export class Node {
                     if (!ip || (isIP(ip) == 0 && !isValidDomain(ip))) break;
                     if (!port || port === "" || Number(port) < 0 || Number(port) > 65535) break;
                     this.discoveredPeers.push(peer);
+                    console.log(`Added new peer: ${ip}:${port}`);
                 }
                 break;
             case 'getobject':
