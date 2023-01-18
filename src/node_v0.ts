@@ -1,5 +1,5 @@
 import net from 'net';
-import { canonicalize } from 'json-canonicalize';
+import {canonicalize} from 'json-canonicalize';
 
 /* CONSTANTS */
 
@@ -22,7 +22,7 @@ const GREETING = {
 
 function sendMessage(socket: net.Socket, message: object) {
     socket.write(canonicalize(message) + '\n');
-};
+}
 
 function respond(socket: net.Socket, message: any) {
     switch (message.type) {
@@ -141,7 +141,7 @@ const server = net.createServer(socket => {
 });
 
 server.listen(PORT, HOST, () => {
-    console.log(`Server listening on ${HOST}:${PORT}`)
+    console.log(`Server listening on ${HOST}:${PORT}`);
 });
 
 /* CLIENT SIDE */
@@ -172,4 +172,3 @@ for (const p of BOOTSTRAP_PEERS) {
         console.log('Server disconnected');
     });
 }
-
