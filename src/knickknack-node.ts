@@ -239,8 +239,8 @@ export default class KnickknackNode {
                             return 'Malformed peers array.';
                     }
                     break;
-                default:
-                    return 'Invalid message type.';
+                // default:
+                //     return 'Invalid message type.';
             }
 
             return message;
