@@ -277,7 +277,7 @@ export default class KnickknackNode {
                     this.sendMessage(socket, {
                         type: 'error',
                         name: 'INVALID_FORMAT',
-                        message,
+                        description: message,
                     });
                     if (!data.receivedHello) {
                         console.log(`Ending socket with ${address}`);
