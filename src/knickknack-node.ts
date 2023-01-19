@@ -30,7 +30,7 @@ class SocketData {
 /* Knickknack Node Class */
 
 export default class KnickknackNode {
-    private peers = new Set<string>(BOOTSTRAP_PEERS);
+    private peers: string[] = BOOTSTRAP_PEERS;
     private socketData = new Map<net.Socket, SocketData>();
     private server: net.Server;
 
@@ -106,11 +106,13 @@ export default class KnickknackNode {
             case 'peers':
                 // ensure well-formatted peer address, else: don't include
                 for (const peer of message.peers) {
-                    const [ip, port] = peer.split(':');
-                    if (!ip || (isIP(ip) == 0 && !isValidDomain(ip))) break;
-                    if (!port || port === '' || +port < 0 || +port > 65535) break;
-                    this.peers.add(peer);
-                    console.log(`Added new peer ${ip}:${port}`);
+                    if (!this.peers.includes(peer)) {
+                        const [ip, port] = peer.split(':');
+                        if (!ip || (isIP(ip) == 0 && !isValidDomain(ip))) continue;
+                        if (!port || port === '' || +port < 0 || +port > 65535) continue;
+                        this.peers.push(peer);
+                        console.log(`Added new peer ${ip}:${port}`);
+                    }
                 }
                 break;
             case 'getobject':
