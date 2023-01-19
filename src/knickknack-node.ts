@@ -151,6 +151,11 @@ export default class KnickknackNode {
     }
 
     sendMessage(socket: net.Socket, message: object) {
+        console.log(
+            `Sending to ${socket.remoteAddress}:${
+                socket.remotePort
+            }: ${canonicalize(message)}`,
+        );
         socket.write(canonicalize(message) + '\n');
     }
 
