@@ -100,7 +100,7 @@ export default class KnickknackNode {
             case 'error':
                 break;
             case 'getpeers':
-                const getPeers = {type: 'peers', peers: this.peers};
+                const getPeers = {type: 'peers', peers: Array.from(this.peers)};
                 this.sendMessage(socket, getPeers);
                 break;
             case 'peers':
