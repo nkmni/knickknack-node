@@ -223,7 +223,7 @@ export default class KnickknackNode {
                         return 'Missing version.';
                     const versionNums = message.version.split('.');
                     if (
-                        versionNums.length < 2 ||
+                        versionNums.length !== 3 ||
                         versionNums[0] !== '0' ||
                         versionNums[1] !== '9'
                     )
