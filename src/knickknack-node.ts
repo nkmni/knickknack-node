@@ -293,11 +293,7 @@ export default class KnickknackNode {
                 }
 
                 if (!data.receivedHello) {
-                    if (
-                        message.type !== 'hello' ||
-                        message.version !== '0.9.0'
-                    ) {
-                        // TODO: allow message.version to be 0.9.x
+                    if (message.type !== 'hello') {
                         console.log(`Ending socket with ${address}`);
                         this.sendMessage(socket, {
                             type: 'error',
