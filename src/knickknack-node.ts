@@ -27,7 +27,7 @@ const helloSchema = z.object({
 const errorSchema = z.object({
     type: z.string(),
     name: z.string(),
-    message: z.string(),
+    description: z.string(),
 });
 
 const getPeersSchema = z.object({
@@ -196,7 +196,7 @@ export default class KnickknackNode {
                 this.sendMessage(socket, {
                     type: 'error',
                     name: 'INVALID_FORMAT',
-                    message: 'Invalid message type.',
+                    description: 'Invalid message type.',
                 });
                 break;
         }
@@ -315,7 +315,7 @@ export default class KnickknackNode {
                 this.sendMessage(socket, {
                     type: 'error',
                     name: 'INVALID_FORMAT',
-                    message: 'Timeout',
+                    description: 'Timeout',
                 });
                 socket.destroy();
                 this.socketData.delete(socket);
