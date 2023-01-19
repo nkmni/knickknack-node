@@ -1,72 +1,84 @@
 import net, {isIP} from 'net';
 import {canonicalize} from 'json-canonicalize';
 import isValidDomain from 'is-valid-domain';
-import { Boolean,
-    Number,
-    String,
-    Literal,
-    Array,
-    Tuple,
-    Record,
-    Dictionary,
-    Union,
-    Static,
-    match, } from 'runtypes';
+import {z} from 'zod';
 
-/* Constants */
+/* ======== CONSTANTS ======== */
 
-const MESSAGE_TYPES = ['hello', 'error', 'getpeers', 'peers', 'getobject', 'ihaveobject', 'object', 'getmempool', 'mempool', 'getchaintip', 'chaintip'];
-const ERROR_TYPES = ['INTERNAL_ERROR', 'INVALID_FORMAT', 'UNKNOWN_OBJECT', 'UNFINDABLE_OBJECT', 'INVALID_HANDSHAKE', 'INVALID_TX_OUTPOINT', 
-'INVALID_TX_SIGNATURE', 'INVALID_TX_CONSERVATION', 'INVALID_BLOCK_COINBASE', 'INVALID_BLOCK_TIMESTAMP', 'INVALID_BLOCK_POW', 'INVALID_GENESIS'];
+// Server
 
 const HOST = '45.77.3.115';
 const PORT = 18018;
 
-const BOOTSTRAP_PEERS = ['45.63.84.226:18018', '45.63.89.228:18018', '144.202.122.8:18018'];
+const BOOTSTRAP_PEERS = [
+    '45.63.84.226:18018',
+    '45.63.89.228:18018',
+    '144.202.122.8:18018',
+];
 
-const GREETING = {
+// Message Schemas
+
+const helloSchema = z.object({
+    type: z.string(),
+    version: z.string(),
+    agent: z.any(),
+});
+
+const errorSchema = z.object({
+    type: z.string(),
+    name: z.string(),
+    message: z.string(),
+});
+
+const getPeersSchema = z.object({
+    type: z.string(),
+});
+
+const peersSchema = z.object({
+    type: z.string(),
+    peers: z.array(z.string()),
+});
+
+// Protocol
+
+const MESSAGE_TYPES = [
+    'hello',
+    'error',
+    'getpeers',
+    'peers',
+    'getobject',
+    'ihaveobject',
+    'object',
+    'getmempool',
+    'mempool',
+    'getchaintip',
+    'chaintip',
+];
+
+const ERROR_NAMES = [
+    'INTERNAL_ERROR',
+    'INVALID_FORMAT',
+    'UNKNOWN_OBJECT',
+    'UNFINDABLE_OBJECT',
+    'INVALID_HANDSHAKE',
+    'INVALID_TX_OUTPOINT',
+    'INVALID_TX_SIGNATURE',
+    'INVALID_TX_CONSERVATION',
+    'INVALID_BLOCK_COINBASE',
+    'INVALID_BLOCK_TIMESTAMP',
+    'INVALID_BLOCK_POW',
+    'INVALID_GENESIS',
+];
+
+const HELLO_MESSAGE = {
     type: 'hello',
     version: '0.9.0',
     agent: 'Knickknack Marabu Client',
 };
 
-//Types for rigorously checking JSON
-const HELLO = Record({
-    type: String,
-    version: String,
-    agent: String,
-});
-type HELLO = Static<
-    typeof HELLO
->;
+const GETPEERS_MESSAGE = {type: 'getpeers'};
 
-const ERROR = Record({
-    type: String,
-    name: String,
-    message: String,
-});
-type ERROR = Static<
-    typeof ERROR
->;
-
-const GETPEERSTYPE = Record({
-    type: String,
-});
-type GETPEERSTYPE = Static<
-    typeof GETPEERSTYPE
->;
-
-const PEERS = Record({
-    type: String,
-    peers: Array(String),
-});
-type PEERS = Static<
-    typeof PEERS
->;
-
-const GETPEERS = {type: 'getpeers'};
-
-/* Socket Variables Class */
+/* ======== Socket Data Class ======== */
 
 class SocketData {
     receivedHello = false;
@@ -74,7 +86,7 @@ class SocketData {
     timeoutId: any = null;
 }
 
-/* Knickknack Node Class */
+/* ======== Knickknack Node Class ======== */
 
 export default class KnickknackNode {
     private peers: string[] = BOOTSTRAP_PEERS;
@@ -83,12 +95,14 @@ export default class KnickknackNode {
 
     constructor() {
         this.server = net.createServer(socket => {
-            console.log(`Connected to client ${socket.remoteAddress}:${socket.remotePort}`);
+            console.log(
+                `Connected to client ${socket.remoteAddress}:${socket.remotePort}`,
+            );
 
             this.socketData.set(socket, new SocketData());
 
-            this.sendMessage(socket, GREETING);
-            this.sendMessage(socket, GETPEERS);
+            this.sendMessage(socket, HELLO_MESSAGE);
+            this.sendMessage(socket, GETPEERS_MESSAGE);
 
             socket.on('data', data => {
                 this.socketOnData(socket, data);
@@ -118,8 +132,8 @@ export default class KnickknackNode {
             const [ip, port] = p.split(':');
             socket.connect(+port, ip, () => {
                 console.log(`Connected to server ${ip}:${port}`);
-                this.sendMessage(socket, GREETING);
-                this.sendMessage(socket, GETPEERS);
+                this.sendMessage(socket, HELLO_MESSAGE);
+                this.sendMessage(socket, GETPEERS_MESSAGE);
             });
 
             socket.on('data', data => {
@@ -155,8 +169,10 @@ export default class KnickknackNode {
                 for (const peer of message.peers) {
                     if (!this.peers.includes(peer)) {
                         const [ip, port] = peer.split(':');
-                        if (!ip || (isIP(ip) == 0 && !isValidDomain(ip))) continue;
-                        if (!port || port === '' || +port < 0 || +port > 65535) continue;
+                        if (!ip || (isIP(ip) == 0 && !isValidDomain(ip)))
+                            continue;
+                        if (!port || port === '' || +port < 0 || +port > 65535)
+                            continue;
                         this.peers.push(peer);
                         console.log(`Added new peer ${ip}:${port}`);
                     }
@@ -191,68 +207,46 @@ export default class KnickknackNode {
         try {
             const message = JSON.parse(m);
 
-            //the following line should throw an error, specifically a ValidationError, if the key or value is of incorrect type
-            const messageCheck = message.type.check
-
             if (!MESSAGE_TYPES.includes(message.type)) {
                 return 'Invalid message type.';
             }
 
-            //Hello message validation
-            if (message.type == 'hello') {
-                //The following line should throw an error if the types do not match
-                const hellocheck = HELLO.check(message);
-
-                //Check if version is of 0.9.x format
-                const nums = message.version.split('.');
-                if (nums.length != 3) {
-                    return 'Invalid message type.'
-                } else {
-                    if (nums[0] != 0 || nums[1] != 9) {
-                        return 'Invalid message type.'
+            switch (message.type) {
+                case 'hello':
+                    helloSchema.parse(message);
+                    if (message.version === undefined)
+                        return 'Missing version.';
+                    const versionNums = message.version.split('.');
+                    if (
+                        versionNums.length < 2 ||
+                        versionNums[0] !== '0' ||
+                        versionNums[1] !== '9'
+                    )
+                        return 'Invalid version number.';
+                    break;
+                case 'error':
+                    errorSchema.parse(message);
+                    if (!ERROR_NAMES.includes(message.name))
+                        return 'Invalid error name.';
+                    break;
+                case 'getpeers':
+                    getPeersSchema.parse(message);
+                    break;
+                case 'peers':
+                    peersSchema.parse(message);
+                    for (const p of message.peers) {
+                        if (p.split(':').length !== 2)
+                            return 'Malformed peers array.';
                     }
-                }
-            }
-
-            //Error message validation
-            if (message.type == 'error') {
-                //The following line should throw an error if the types do not match
-                const errorcheck = ERROR.check(message);
-
-                //Check if error name is valid
-                if (!ERROR_TYPES.includes(message.name)) {
+                    break;
+                default:
                     return 'Invalid message type.';
-                }
             }
-
-            //Getpeers message validation
-            if (message.type == 'getpeers') {
-                //The following line should throw an error if the types do not match
-                const getpeerscheck = GETPEERSTYPE.check(message);
-            }
-
-            //Peers message validation
-            if (message.type == 'peers') {
-                //The following line should throw an error if the types do not match
-                const peerscheck = PEERS.check(message);
-
-                //Check peer host/port format is correct
-                const peers = message.peers;
-                for (var peer of peers) {
-                    if (peer.split(':').length != 2) {
-                        return 'Invalid message type.';
-                    }
-                }
-            }
-
-            //if (message.type === 'hello' && message.version === undefined) {
-            //    return 'Missing version.';
-            //}
 
             return message;
-        } catch (e) {
+        } catch (e: any) {
             console.error(e);
-            return 'Invalid JSON.';
+            return e.message;
         }
     }
 
@@ -261,7 +255,9 @@ export default class KnickknackNode {
         const data = this.socketData.get(socket);
 
         if (data === undefined) {
-            throw new Error(`\`socketOnData\`: ${address} not mapped to any SocketData object.`);
+            throw new Error(
+                `\`socketOnData\`: ${address} not mapped to any SocketData object.`,
+            );
         }
 
         data.buffer += sentData;
@@ -291,7 +287,10 @@ export default class KnickknackNode {
                 }
 
                 if (!data.receivedHello) {
-                    if (message.type !== 'hello' || message.version !== '0.9.0') {
+                    if (
+                        message.type !== 'hello' ||
+                        message.version !== '0.9.0'
+                    ) {
                         // TODO: allow message.version to be 0.9.x
                         console.log(`Ending socket with ${address}`);
                         this.sendMessage(socket, {
@@ -325,11 +324,15 @@ export default class KnickknackNode {
     }
 
     socketOnError(socket: net.Socket, error: Error) {
-        console.error(`${socket.remoteAddress}:${socket.remotePort} error: ${error}`);
+        console.error(
+            `${socket.remoteAddress}:${socket.remotePort} error: ${error}`,
+        );
     }
 
     socketOnClose(socket: net.Socket) {
-        console.log(`${socket.remoteAddress}:${socket.remotePort} disconnected`);
+        console.log(
+            `${socket.remoteAddress}:${socket.remotePort} disconnected`,
+        );
         this.socketData.delete(socket);
     }
 }

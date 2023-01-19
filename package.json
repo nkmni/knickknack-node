@@ -21,7 +21,7 @@
         "is-valid-domain": "^0.1.6",
         "json-canonicalize": "^1.0.4",
         "net": "^1.0.2",
-        "runtypes": "^6.6.0"
+        "zod": "^3.20.2"
     },
     "devDependencies": {
         "@types/node": "^18.11.18",
