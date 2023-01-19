@@ -185,7 +185,7 @@ export default class KnickknackNode {
                     });
                     if (!data.receivedHello) {
                         console.log(`Ending socket with ${address}`);
-                        socket.end();
+                        socket.destroy();
                         this.socketData.delete(socket);
                     }
                 }
@@ -198,7 +198,7 @@ export default class KnickknackNode {
                             type: 'error',
                             name: 'INVALID_HANDSHAKE',
                         });
-                        socket.end();
+                        socket.destroy();
                         this.socketData.delete(socket);
                     } else {
                         data.receivedHello = true;
@@ -218,7 +218,7 @@ export default class KnickknackNode {
                     name: 'INVALID_FORMAT',
                     message: 'Timeout',
                 });
-                socket.end();
+                socket.destroy();
                 this.socketData.delete(socket);
             }, 10000);
         }
