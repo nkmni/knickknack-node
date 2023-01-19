@@ -284,6 +284,7 @@ export default class KnickknackNode {
                         socket.destroy();
                         this.socketData.delete(socket);
                     }
+                    break;
                 }
 
                 if (!data.receivedHello) {
