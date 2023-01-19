@@ -1,10 +1,23 @@
 import net, {isIP} from 'net';
 import {canonicalize} from 'json-canonicalize';
 import isValidDomain from 'is-valid-domain';
+import { Boolean,
+    Number,
+    String,
+    Literal,
+    Array,
+    Tuple,
+    Record,
+    Dictionary,
+    Union,
+    Static,
+    match, } from 'runtypes';
 
 /* Constants */
 
 const MESSAGE_TYPES = ['hello', 'error', 'getpeers', 'peers', 'getobject', 'ihaveobject', 'object', 'getmempool', 'mempool', 'getchaintip', 'chaintip'];
+const ERROR_TYPES = ['INTERNAL_ERROR', 'INVALID_FORMAT', 'UNKNOWN_OBJECT', 'UNFINDABLE_OBJECT', 'INVALID_HANDSHAKE', 'INVALID_TX_OUTPOINT', 
+'INVALID_TX_SIGNATURE', 'INVALID_TX_CONSERVATION', 'INVALID_BLOCK_COINBASE', 'INVALID_BLOCK_TIMESTAMP', 'INVALID_BLOCK_POW', 'INVALID_GENESIS'];
 
 const HOST = '45.77.3.115';
 const PORT = 18018;
@@ -16,6 +29,40 @@ const GREETING = {
     version: '0.9.0',
     agent: 'Knickknack Marabu Client',
 };
+
+//Types for rigorously checking JSON
+const HELLO = Record({
+    type: String,
+    version: String,
+    agent: String,
+});
+type HELLO = Static<
+    typeof HELLO
+>;
+
+const ERROR = Record({
+    type: String,
+    name: String,
+    message: String,
+});
+type ERROR = Static<
+    typeof ERROR
+>;
+
+const GETPEERSTYPE = Record({
+    type: String,
+});
+type GETPEERSTYPE = Static<
+    typeof GETPEERSTYPE
+>;
+
+const PEERS = Record({
+    type: String,
+    peers: Array(String),
+});
+type PEERS = Static<
+    typeof PEERS
+>;
 
 const GETPEERS = {type: 'getpeers'};
 
@@ -143,12 +190,65 @@ export default class KnickknackNode {
     isValidMessage(m: string) {
         try {
             const message = JSON.parse(m);
+
+            //the following line should throw an error, specifically a ValidationError, if the key or value is of incorrect type
+            const messageCheck = message.type.check
+
             if (!MESSAGE_TYPES.includes(message.type)) {
                 return 'Invalid message type.';
             }
-            if (message.type === 'hello' && message.version === undefined) {
-                return 'Missing version.';
+
+            //Hello message validation
+            if (message.type == 'hello') {
+                //The following line should throw an error if the types do not match
+                const hellocheck = HELLO.check(message);
+
+                //Check if version is of 0.9.x format
+                const nums = message.version.split('.');
+                if (nums.length != 3) {
+                    return 'Invalid message type.'
+                } else {
+                    if (nums[0] != 0 || nums[1] != 9) {
+                        return 'Invalid message type.'
+                    }
+                }
             }
+
+            //Error message validation
+            if (message.type == 'error') {
+                //The following line should throw an error if the types do not match
+                const errorcheck = ERROR.check(message);
+
+                //Check if error name is valid
+                if (!ERROR_TYPES.includes(message.name)) {
+                    return 'Invalid message type.';
+                }
+            }
+
+            //Getpeers message validation
+            if (message.type == 'getpeers') {
+                //The following line should throw an error if the types do not match
+                const getpeerscheck = GETPEERSTYPE.check(message);
+            }
+
+            //Peers message validation
+            if (message.type == 'peers') {
+                //The following line should throw an error if the types do not match
+                const peerscheck = PEERS.check(message);
+
+                //Check peer host/port format is correct
+                const peers = message.peers;
+                for (var peer of peers) {
+                    if (peer.split(':').length != 2) {
+                        return 'Invalid message type.';
+                    }
+                }
+            }
+
+            //if (message.type === 'hello' && message.version === undefined) {
+            //    return 'Missing version.';
+            //}
+
             return message;
         } catch (e) {
             console.error(e);
