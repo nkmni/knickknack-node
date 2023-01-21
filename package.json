@@ -17,9 +17,11 @@
     },
     "homepage": "https://github.com/nkmni/knickknack-node#readme",
     "dependencies": {
+        "blake2": "^4.1.1",
         "delay": "^5.0.0",
         "is-valid-domain": "^0.1.6",
         "json-canonicalize": "^1.0.4",
+        "level-ts": "^2.1.0",
         "net": "^1.0.2",
         "zod": "^3.20.2"
     },

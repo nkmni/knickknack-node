@@ -2,6 +2,7 @@ import net, {isIP} from 'net';
 import {canonicalize} from 'json-canonicalize';
 import isValidDomain from 'is-valid-domain';
 import {z} from 'zod';
+import level from 'level-ts';
 
 /* ======== CONSTANTS ======== */
 
@@ -92,6 +93,7 @@ export default class KnickknackNode {
     private peers: string[] = BOOTSTRAP_PEERS;
     private socketData = new Map<net.Socket, SocketData>();
     private server: net.Server;
+    private db = new level('./database');
 
     constructor() {
         this.server = net.createServer(socket => {
@@ -186,7 +188,12 @@ export default class KnickknackNode {
             case 'getobject':
                 break;
             case 'ihaveobject':
-                break;
+                // TODO: check if object in database
+                const getObject = {
+                    type: 'getobject',
+                    objectid: message.objectid
+                  }
+                this.sendMessage(socket, getObject);
             case 'object':
                 break;
             case 'getmempool':
@@ -207,7 +214,6 @@ export default class KnickknackNode {
         }
     }
 
-    // TODO: Ed Post #20: Need more rigorous msg validation
     isValidMessage(m: string) {
         try {
             const message = JSON.parse(m);
@@ -253,6 +259,15 @@ export default class KnickknackNode {
             console.error(e);
             return e.message;
         }
+    }
+
+    /* Implement a function to map objects to objectids (canonical -> BLAKE2 hash). */
+    getObjectId(obj: object) {
+        var blake2 = require('blake2');
+        var hash = blake2.createHash('blake2s');
+        hash.update(Buffer.from(canonicalize(obj)));
+        return(hash.digest("hex"));
+        // already tested/verified using genesis block
     }
 
     socketOnData(socket: net.Socket, sentData: Buffer) {
