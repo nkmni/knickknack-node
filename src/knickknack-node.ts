@@ -3,6 +3,7 @@ import {canonicalize} from 'json-canonicalize';
 import isValidDomain from 'is-valid-domain';
 import {z} from 'zod';
 import level from 'level-ts';
+import { db } from './store';
 
 /* ======== CONSTANTS ======== */
 
@@ -90,10 +91,10 @@ class SocketData {
 /* ======== Knickknack Node Class ======== */
 
 export default class KnickknackNode {
-    private peers: string[] = BOOTSTRAP_PEERS;
+    // fyi: I deleted 'peers' (array of strings) in favor of this map, bc we need a way to access (string -> socket)
+    private connectedPeers = new Map<string, net.Socket>();
     private socketData = new Map<net.Socket, SocketData>();
     private server: net.Server;
-    private db = new level('./database');
 
     constructor() {
         this.server = net.createServer(socket => {
@@ -128,28 +129,33 @@ export default class KnickknackNode {
         /* CLIENT SIDE */
 
         for (const p of BOOTSTRAP_PEERS) {
-            let socket = new net.Socket();
-            this.socketData.set(socket, new SocketData());
-
-            const [ip, port] = p.split(':');
-            socket.connect(+port, ip, () => {
-                console.log(`Connected to server ${ip}:${port}`);
-                this.sendMessage(socket, HELLO_MESSAGE);
-                this.sendMessage(socket, GETPEERS_MESSAGE);
-            });
-
-            socket.on('data', data => {
-                this.socketOnData(socket, data);
-            });
-
-            socket.on('error', error => {
-                this.socketOnError(socket, error);
-            });
-
-            socket.on('close', () => {
-                this.socketOnClose(socket);
-            });
+            this.connectToPeer(p);
         }
+    }
+
+    connectToPeer(p: string) {
+        let socket = new net.Socket();
+        this.socketData.set(socket, new SocketData());
+
+        const [ip, port] = p.split(':');
+        socket.connect(+port, ip, () => {
+            console.log(`Connected to server ${ip}:${port}`);
+            this.sendMessage(socket, HELLO_MESSAGE);
+            this.sendMessage(socket, GETPEERS_MESSAGE);
+            this.connectedPeers.set(p, socket);
+        });
+
+        socket.on('data', data => {
+            this.socketOnData(socket, data);
+        });
+
+        socket.on('error', error => {
+            this.socketOnError(socket, error);
+        });
+
+        socket.on('close', () => {
+            this.socketOnClose(socket);
+        });
     }
 
     sendMessage(socket: net.Socket, message: object) {
@@ -161,6 +167,67 @@ export default class KnickknackNode {
         socket.write(canonicalize(message) + '\n');
     }
 
+    /* Object Helper Functions */
+
+    /* Function to map objects to objectids (canonical -> BLAKE2 hash). */
+    getObjectId(obj: object) {
+        var blake2 = require('blake2');
+        var hash = blake2.createHash('blake2s');
+        hash.update(Buffer.from(canonicalize(obj)));
+        return(hash.digest("hex"));
+        // already tested/verified using genesis block
+    }
+
+    /* If has object in db, send to requester. If not, do nothing. */
+    async getObject(socket: net.Socket, objectid: string) {
+        try {
+            const reqObj = await db.get(`object-${objectid}`);
+            this.sendMessage(socket, reqObj);
+            console.log(`Sent object: ${reqObj}`)
+        } catch {
+            return;
+        }
+    }
+
+    /* If has obj in db, do nothing. Else, request 'getobject' */
+    async iHaveObject(socket: net.Socket, objectid: string) {
+        try { // Has object in db
+            await db.get(`object-${objectid}`);
+        } catch {
+            const getObject = {
+                type: 'getobject',
+                objectid: objectid
+              }
+            this.sendMessage(socket, getObject);
+            return;
+        }
+    }
+
+    /* Store object in db */
+    async store(sentObject: object) {
+        const objectid = this.getObjectId(sentObject);
+        await db.put(`object-${objectid}`, sentObject)
+    }
+    
+    /* If new obj, store in db and broadcast. If not, do nothing. */
+    async receivedObject(socket: net.Socket, sentObject: object) {
+        const objectid = this.getObjectId(sentObject);
+        try { // Has object in db, do nothing
+            await db.get(`object-${objectid}`);
+        } catch { // Store new obj, broadcast to all peers
+            this.store(sentObject);
+            const IHAVEOBJECTMSG = {
+                type: "ihaveobject",
+                objectid: objectid
+            };
+            this.connectedPeers.forEach((value: net.Socket, key: string) => {
+                this.sendMessage(value, IHAVEOBJECTMSG);
+                console.log (`Broadcasted "ihaveobject" msg to client: ${key}`);
+            });
+            return;
+        }
+    }
+    
     respond(socket: net.Socket, message: any) {
         switch (message.type) {
             case 'hello':
@@ -168,33 +235,31 @@ export default class KnickknackNode {
             case 'error':
                 break;
             case 'getpeers':
-                const getPeers = {type: 'peers', peers: this.peers};
+                const getPeers = {type: 'peers', peers: Object.keys(this.connectedPeers)};
                 this.sendMessage(socket, getPeers);
                 break;
             case 'peers':
                 // ensure well-formatted peer address, else: don't include
                 for (const peer of message.peers) {
-                    if (!this.peers.includes(peer)) {
+                    if (!Object.keys(this.connectedPeers).includes(peer)) {
                         const [ip, port] = peer.split(':');
                         if (!ip || (isIP(ip) == 0 && !isValidDomain(ip)))
                             continue;
                         if (!port || port === '' || +port < 0 || +port > 65535)
                             continue;
-                        this.peers.push(peer);
+                        this.connectToPeer(peer);
                         console.log(`Added new peer ${ip}:${port}`);
                     }
                 }
                 break;
+            // TODO: Missing verification for all Object schemas/JSON fields/types
             case 'getobject':
+                this.getObject(socket, message.objectid);
                 break;
             case 'ihaveobject':
-                // TODO: check if object in database
-                const getObject = {
-                    type: 'getobject',
-                    objectid: message.objectid
-                  }
-                this.sendMessage(socket, getObject);
+                this.iHaveObject(socket, message.objectid);
             case 'object':
+                this.receivedObject(socket, message.object);
                 break;
             case 'getmempool':
                 break;
@@ -259,15 +324,6 @@ export default class KnickknackNode {
             console.error(e);
             return e.message;
         }
-    }
-
-    /* Implement a function to map objects to objectids (canonical -> BLAKE2 hash). */
-    getObjectId(obj: object) {
-        var blake2 = require('blake2');
-        var hash = blake2.createHash('blake2s');
-        hash.update(Buffer.from(canonicalize(obj)));
-        return(hash.digest("hex"));
-        // already tested/verified using genesis block
     }
 
     socketOnData(socket: net.Socket, sentData: Buffer) {
