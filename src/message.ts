@@ -80,7 +80,7 @@ export const NestedObjectMessage = Record({
 export type NestedObjectMessageType = Static<typeof NestedObjectMessage>
 
 export const ObjectMessage = Record({
-  type: Literal('ihaveobject'),
+  type: Literal('object'),
   object: NestedObjectMessage
 })
 export type ObjectMessageType = Static<typeof ObjectMessage>
