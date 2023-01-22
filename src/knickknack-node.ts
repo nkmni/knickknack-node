@@ -222,10 +222,10 @@ export default class KnickknackNode {
                 type: "ihaveobject",
                 objectid: objectid
             };
-            /*this.connectedPeers.forEach((value: net.Socket, key: string) => {
+            this.connectedPeers.forEach((value: net.Socket, key: string) => {
                 this.sendMessage(value, IHAVEOBJECTMSG);
                 console.log (`Broadcasted "ihaveobject" msg to client: ${key}`);
-            });*/
+            });
             return;
         }
     }
