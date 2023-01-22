@@ -59,38 +59,36 @@ export class Peer {
   }
 
   /* If has obj in db, do nothing. Else, request 'getobject' */
-  async iHaveObject(objectid: string) {
+  async iHaveObject(id: string) {
     try { // Has object in db
-        await db.get(`object-${objectid}`);
+        await db.get(`object-${id}`);
     } catch {
-        const getObject = {
-            type: 'getobject',
-            objectid: objectid
-          }
-        this.sendMessage(getObject);
+        this.sendMessage({
+          type: 'getobject',
+          objectid: `${id}`
+        });
         return;
     }
   }
 
   /* Store object in db */
   async store(sentObject: object) {
-    const objectid = this.getObjectId(sentObject);
-    await db.put(`object-${objectid}`, sentObject)
+    const id = this.getObjectId(sentObject);
+    await db.put(`object-${id}`, sentObject)
   }
 
   /* If new obj, store in db and broadcast. If not, do nothing. */
   async receivedObject(sentObject: object) {
-    const objectid = this.getObjectId(sentObject);
+    const id = this.getObjectId(sentObject);
     try { // Has object in db, do nothing
-        await db.get(`object-${objectid}`);
+        await db.get(`object-${id}`);
     } catch { // Store new obj, broadcast to all peers
         await this.store(sentObject);
-        const IHAVEOBJECTMSG = {
-            type: "ihaveobject",
-            objectid: objectid
-        };
         peerManager.connectedPeers.forEach((peer: Peer, address: string) => {
-            peer.sendMessage(IHAVEOBJECTMSG);
+            peer.sendMessage({
+              type: "ihaveobject",
+              objectid: `${id}`
+          });
             this.debug (`Broadcasted "ihaveobject" msg to client: ${address}`);
         });
         return;
