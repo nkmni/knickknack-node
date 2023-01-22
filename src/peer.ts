@@ -10,7 +10,7 @@ import { canonicalize } from 'json-canonicalize';
 import { db } from './store';
 
 const VERSION = '0.9.0'
-const NAME = 'Malibu (pset1)'
+const NAME = 'Knickknack (pset2)'
 
 export class Peer {
   active: boolean = false
@@ -47,13 +47,13 @@ export class Peer {
 
   /* If has object in db, send to requester. If not, do nothing. */
   async getObject(objectid: string) {
-    console.log(`Client asked us for object with id: ${objectid}`);
+    this.debug (`Client asked us for object with id: ${objectid}`);
     try {
         const reqObj = await db.get(`object-${objectid}`);
         this.sendMessage(reqObj);
-        console.log(`Sent object with id: ${objectid}`);
+        this.debug (`Sent object with id: ${objectid}`);
     } catch {
-        console.log(`Knickknack does not have object with id: ${objectid}`);
+        this.debug (`Knickknack does not have object with id: ${objectid}`);
         return;
     }
   }
@@ -91,7 +91,7 @@ export class Peer {
         };
         peerManager.connectedPeers.forEach((peer: Peer, address: string) => {
             peer.sendMessage(IHAVEOBJECTMSG);
-            console.log (`Broadcasted "ihaveobject" msg to client: ${address}`);
+            this.debug (`Broadcasted "ihaveobject" msg to client: ${address}`);
         });
         return;
     }
@@ -110,7 +110,6 @@ export class Peer {
 
   sendMessage(obj: object) {
     const message: string = canonicalize(obj)
-
     this.debug(`Sending message: ${message}`)
     this.socket.sendMessage(message)
   }

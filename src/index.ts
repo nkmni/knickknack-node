@@ -1,6 +1,6 @@
-import { Network } from './network'
+import { Network } from './network';
 
-const PORT = 18018
+const PORT = 18018;
 const HOST = '45.77.3.115';
 
 const network = new Network();
