@@ -136,13 +136,13 @@ export default class KnickknackNode {
     connectToPeer(p: string) {
         let socket = new net.Socket();
         this.socketData.set(socket, new SocketData());
+        this.connectedPeers.set(p, socket);
 
         const [ip, port] = p.split(':');
         socket.connect(+port, ip, () => {
             console.log(`Connected to server ${ip}:${port}`);
             this.sendMessage(socket, HELLO_MESSAGE);
             this.sendMessage(socket, GETPEERS_MESSAGE);
-            this.connectedPeers.set(p, socket);
         });
 
         socket.on('data', data => {
@@ -184,9 +184,9 @@ export default class KnickknackNode {
         try {
             const reqObj = await db.get(`object-${objectid}`);
             this.sendMessage(socket, reqObj);
-            console.log(`Sent object: ${reqObj}`)
+            console.log(`Sent object with id: ${objectid}`);
         } catch {
-            console.log(`We do not have object with id: ${objectid}`);
+            console.log(`Knickknack does not have object with id: ${objectid}`);
             return;
         }
     }
@@ -249,7 +249,7 @@ export default class KnickknackNode {
                             continue;
                         if (!port || port === '' || +port < 0 || +port > 65535)
                             continue;
-                        // this.connectToPeer(peer);
+                        this.connectToPeer(peer);
                         console.log(`Added new peer ${ip}:${port}`);
                     }
                 }
