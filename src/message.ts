@@ -81,15 +81,15 @@ export type NestedObjectMessageType = Static<typeof NestedObjectMessage>
 
 export const ObjectMessage = Record({
   type: Literal('object'),
-  object: NestedObjectMessage
-})
-export type ObjectMessageType = Static<typeof ObjectMessage>
+  object: String
+});
+export type ObjectMessageType = Static<typeof ObjectMessage>;
 
 /* GetMempool */
 export const GetMempoolMessage = Record({
   type: Literal('getmempool')
-})
-export type GetMempoolMessageType = Static<typeof GetMempoolMessage>
+});
+export type GetMempoolMessageType = Static<typeof GetMempoolMessage>;
 
 /* Mempool */
 export const MempoolMessage = Record({
