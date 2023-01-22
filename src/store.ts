@@ -1,3 +1,3 @@
-import level from 'level-ts'
+import level from 'level-ts';
 
 export const db = new level('./database')
