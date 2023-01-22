@@ -50,7 +50,7 @@ export class Peer {
     this.debug (`Client asked us for object with id: ${objectid}`);
     try {
         const reqObj = await db.get(`object-${objectid}`);
-        this.sendMessage(reqObj);
+        this.sendMessage({type:'object', object: reqObj});
         this.debug (`Sent object with id: ${objectid}`);
     } catch {
         this.debug (`Knickknack does not have object with id: ${objectid}`);
@@ -88,7 +88,7 @@ export class Peer {
             peer.sendMessage({
               type: "ihaveobject",
               objectid: `${id}`
-          });
+            });
             this.debug (`Broadcasted "ihaveobject" msg to client: ${address}`);
         });
         return;
