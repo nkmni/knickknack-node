@@ -180,11 +180,13 @@ export default class KnickknackNode {
 
     /* If has object in db, send to requester. If not, do nothing. */
     async getObject(socket: net.Socket, objectid: string) {
+        console.log(`Client asked us for object with id: ${objectid}`);
         try {
             const reqObj = await db.get(`object-${objectid}`);
             this.sendMessage(socket, reqObj);
             console.log(`Sent object: ${reqObj}`)
         } catch {
+            console.log(`We do not have object with id: ${objectid}`);
             return;
         }
     }
