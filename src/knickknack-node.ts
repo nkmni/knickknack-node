@@ -247,7 +247,7 @@ export default class KnickknackNode {
                             continue;
                         if (!port || port === '' || +port < 0 || +port > 65535)
                             continue;
-                        this.connectToPeer(peer);
+                        // this.connectToPeer(peer);
                         console.log(`Added new peer ${ip}:${port}`);
                     }
                 }
@@ -259,7 +259,7 @@ export default class KnickknackNode {
             case 'ihaveobject':
                 this.iHaveObject(socket, message.objectid);
             case 'object':
-                this.receivedObject(socket, message.object);
+                // this.receivedObject(socket, message.object);
                 break;
             case 'getmempool':
                 break;
@@ -358,6 +358,7 @@ export default class KnickknackNode {
                     if (!data.receivedHello) {
                         console.log(`Ending socket with ${address}`);
                         socket.destroy();
+                        this.connectedPeers.delete(address);
                         this.socketData.delete(socket);
                     }
                     break;
@@ -371,6 +372,7 @@ export default class KnickknackNode {
                             name: 'INVALID_HANDSHAKE',
                         });
                         socket.destroy();
+                        this.connectedPeers.delete(address);
                         this.socketData.delete(socket);
                     } else {
                         data.receivedHello = true;
@@ -391,6 +393,7 @@ export default class KnickknackNode {
                     description: 'Timeout',
                 });
                 socket.destroy();
+                this.connectedPeers.delete(address);
                 this.socketData.delete(socket);
             }, 10000);
         }
@@ -406,6 +409,7 @@ export default class KnickknackNode {
         console.log(
             `${socket.remoteAddress}:${socket.remotePort} disconnected`,
         );
+        this.connectedPeers.delete(`${socket.remoteAddress}:${socket.remotePort}`);
         this.socketData.delete(socket);
     }
 }
