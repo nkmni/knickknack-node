@@ -1,0 +1,3 @@
+{"agent":"Knickknack (pset2)","type":"hello","version":"0.9.0"}
+{ "type": "getobject", "objectid": "36496e13e8ad98f75321264b0a7980bfe25d4f1226ad1f8da1d8cdb82d8119ec" }
+{ "type": "getobject", "objectid": "a97843fe322af576b2f51884e31763f935ff64f7f258b95f029a2c19629d19f3" }
