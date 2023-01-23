@@ -133,7 +133,7 @@ export class Peer {
     if(val.toLowerCase() !== val){
       return false;
     }
-    if(/^[a-z0-9]*$/.test(val)){
+    if(/^[a-f0-9]*$/.test(val)){
       return false;
     }
     return true;
@@ -152,6 +152,20 @@ export class Peer {
     }
     return this.isValidHex(pubkey);
   }
+
+  // async fromHexString = (hexString) => Uint8Array.from(hexString.match(/.{1,2}/g).map((byte) => parseInt(byte, 16)));
+
+  // async hexToUint8(hex: string){
+  //   if(hex.match(/.{1,2}/g) === null){
+  //     return NaN;
+  //   }else{
+  //     return Uint8Array.from(hex.match(/.{1,2}/g)!.map((byte) => parseInt(byte, 16)));
+  //   }
+  // }
+
+  // async unit8ToHex()
+
+  // const toHexString = (bytes) => bytes.reduce((str, byte) => str + byte.toString(16).padStart(2, '0'), '');
 
   /* On Events */
 
@@ -277,6 +291,7 @@ export class Peer {
         //Verify signature
         const pubkey = obj.outputs[index].pubkey;
         const sig = input.sig;
+        const stringMsg = JSON.stringify(msg);
 
         if(!this.isValidPubKey(pubkey)){
           return await this.fatalError(new AnnotatedError('INVALID_FORMAT', `You sent a transaction that has an invalid outpoint public key format.`));
@@ -286,10 +301,17 @@ export class Peer {
           return await this.fatalError(new AnnotatedError('INVALID_FORMAT', `You sent a transaction that has an invalid outpoint signature format.`));
         }
 
-        /*TO DO: Verify signature using ed25519, and figure out how to convert from hex to uint8*/
-        //const senderPubkey = ed.Point.fromHex(pubkey);
+        /* TO DO: Verify signature using ed25519, and figure out how to convert from hex to uint8
+          here's what I found out:
+          - ed25519 doesn't need to be changed to uint8 (according to their git), if this is not true I tried to write some conversion methods above, not sure if/how they work
+          - I'm pretty sure we need the original string version of the message so I converted it back 
+          - I think the line I've written below should cover the verification, as long as keys and messages are created using ed, but can't check that yet*/
         
-        //const isValid = await ed.verify(sig, msg, senderPubkey);
+        const isValid = await ed.verify(sig, stringMsg, pubkey);
+
+        if(!isValid){
+          return await this.fatalError(new AnnotatedError('INVALID_TX_SIGNATURE', `The transaction is invalid.`));
+        }
 
         inputSum += obj.outputs[index].value;
 
