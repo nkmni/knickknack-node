@@ -81,9 +81,9 @@ export class Peer {
   }
 
   /* Store transaction in db and gossip it*/
-  async storeTx(sentObject: object) {
-    const id = this.getObjectId(sentObject);
-    await this.store(sentObject);
+  async storeTx(tx: object) {
+    const id = this.getObjectId(tx);
+    await this.store(tx);
     await this.iHaveObject(id);
   }
 
@@ -136,7 +136,6 @@ export class Peer {
     if(/^[a-z0-9]*$/.test(val)){
       return false;
     }
-    /*TO DO: Add length check*/
     return true;
   }
 
@@ -301,6 +300,9 @@ export class Peer {
 
     //Output validation
     for(var output of msg.outputs){
+      if(!this.isValidPubKey(output.pubkey)){
+        return await this.fatalError(new AnnotatedError('INVALID_FORMAT', `You sent a transaction that has an invalid output public key format.`));
+      }
       if(!Number.isInteger(output.value) || output.value <0){
         return await this.fatalError(new AnnotatedError('INVALID_FORMAT', `You sent a transaction that has an invalid output value.`));
       }
