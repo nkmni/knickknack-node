@@ -10,6 +10,7 @@ import { peerManager } from './peermanager';
 import { canonicalize } from 'json-canonicalize';
 import { db } from './store';
 import * as ed from '@noble/ed25519';
+import { sign } from 'crypto';
 
 const VERSION = '0.9.0'
 const NAME = 'Knickknack (pset2)'
@@ -128,8 +129,29 @@ export class Peer {
     this.socket.end()
   }
 
-  async isHex(val: String){
+  async isValidHex(val: string){
+    if(val.toLowerCase() !== val){
+      return false;
+    }
+    if(/^[a-z0-9]*$/.test(val)){
+      return false;
+    }
+    /*TO DO: Add length check*/
+    return true;
+  }
 
+  async isValidSig(sig: string){
+    if(sig.length !== 128){
+      return false;
+    }
+    return this.isValidHex(sig);
+  }
+
+  async isValidPubKey(pubkey: string){
+    if(pubkey.length !== 64){
+      return false;
+    }
+    return this.isValidHex(pubkey);
   }
 
   /* On Events */
@@ -254,8 +276,20 @@ export class Peer {
         }
 
         //Verify signature
-        const senderPubkey = ed.Point.fromHex(obj.outputs[index].pubkey);
-        const sig = ed.Point.fromHex(input.sig);
+        const pubkey = obj.outputs[index].pubkey;
+        const sig = input.sig;
+
+        if(!this.isValidPubKey(pubkey)){
+          return await this.fatalError(new AnnotatedError('INVALID_FORMAT', `You sent a transaction that has an invalid outpoint public key format.`));
+        }
+
+        if(!this.isValidSig(sig)){
+          return await this.fatalError(new AnnotatedError('INVALID_FORMAT', `You sent a transaction that has an invalid outpoint signature format.`));
+        }
+
+        /*TO DO: Verify signature using ed25519, and figure out how to convert from hex to uint8*/
+        //const senderPubkey = ed.Point.fromHex(pubkey);
+        
         //const isValid = await ed.verify(sig, msg, senderPubkey);
 
         inputSum += obj.outputs[index].value;
