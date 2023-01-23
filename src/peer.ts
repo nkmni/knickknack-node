@@ -116,6 +116,9 @@ export class Peer {
         } catch {
             // Store new obj, broadcast to all peers
             await this.store(sentObject);
+            this.debug(
+                `Broadcasting "ihaveobject" msg to all connected peers for object id: ${id}}`,
+            );
             peerManager.connectedPeers.forEach(
                 (peer: Peer, address: string) => {
                     peer.sendMessage({
