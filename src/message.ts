@@ -13,6 +13,11 @@ const ErrorChoices = Union(
     Literal('INTERNAL_ERROR'),
     Literal('INVALID_FORMAT'),
     Literal('INVALID_HANDSHAKE'),
+    Literal('INVALID_TX_OUTPOINT'),
+    Literal('INVALID_TX_SIGNATURE'),
+    Literal('INVALID_TX_CONSERVATION'),
+    Literal('UNKNOWN_OBJECT'),
+    Literal('UNFINDABLE_OBJECT'),
 );
 
 export const ErrorMessage = Record({
@@ -85,32 +90,8 @@ export const BlockObjectMessage = Record({
     created: String,
     T: String,
 });
+
 export type BlockObjectMessageType = Static<typeof BlockObjectMessage>;
-
-export const TxOutpoint = Record({
-    txid: String,
-    index: Number,
-});
-export type TxOutpointType = Static<typeof TxOutpoint>;
-
-export const TxInput = Record({
-    outpoint: TxOutpoint,
-    sig: String,
-});
-export type TxInputType = Static<typeof TxInput>;
-
-export const TxOutput = Record({
-    pubkey: String,
-    value: Number,
-});
-export type TxOutputType = Static<typeof TxOutput>;
-
-export const TxObjectMessage = Record({
-    type: Literal('transaction'),
-    inputs: Array(TxInput),
-    outputs: Array(TxOutput),
-});
-export type TxObjectMessageType = Static<typeof TxObjectMessage>;
 
 export const ObjectMessage = Record({
     type: Literal('object'),
@@ -143,6 +124,45 @@ export const ChainTipMessage = Record({
 });
 export type ChainTipMessageType = Static<typeof ChainTipMessage>;
 
+/* Definitions for Transactions */
+
+/* Outpoint */
+export const OutPoint = Record({
+    txid: String,
+    index: Number,
+});
+export type OutPointType = Static<typeof OutPoint>;
+
+/* Input */
+export const Input = Record({
+    outpoint: OutPoint,
+    sig: String,
+});
+export type InputType = Static<typeof Input>;
+
+/* Output */
+export const Output = Record({
+    pubkey: String,
+    value: Number,
+});
+export type OutputType = Static<typeof Output>;
+
+/* Transaction */
+export const Transaction = Record({
+    type: Literal('transaction'),
+    inputs: Array(Input),
+    outputs: Array(Output),
+});
+export type TransactionType = Static<typeof Transaction>;
+
+/* Coinbase Transaction */
+export const CoinbaseTransaction = Record({
+    type: Literal('transaction'),
+    height: Number,
+    outputs: Array(Output),
+});
+export type CoinbaseTransactionType = Static<typeof CoinbaseTransaction>;
+
 /* All */
 export const Message = Union(
     HelloMessage,
@@ -156,6 +176,8 @@ export const Message = Union(
     MempoolMessage,
     GetChainTipMessage,
     ChainTipMessage,
+    Transaction,
+    CoinbaseTransaction,
 );
 export type MessageType = Static<typeof Message>;
 
@@ -171,4 +193,6 @@ export const Messages = [
     MempoolMessage,
     GetChainTipMessage,
     ChainTipMessage,
+    Transaction,
+    CoinbaseTransaction,
 ];
