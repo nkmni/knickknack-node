@@ -1,4 +1,4 @@
-import { Literal, Record, String, Array, Union, Static } from 'runtypes';
+import { Literal, Record, String, Array, Union, Static, Number } from 'runtypes';
 
 /* Hello */
 export const HelloMessage = Record({
@@ -12,7 +12,12 @@ export type HelloMessageType = Static<typeof HelloMessage>
 const ErrorChoices = Union(
   Literal('INTERNAL_ERROR'),
   Literal('INVALID_FORMAT'),
-  Literal('INVALID_HANDSHAKE')
+  Literal('INVALID_HANDSHAKE'),
+  Literal('INVALID_TX_OUTPOINT'),
+  Literal('INVALID_TX_SIGNATURE'),
+  Literal('INVALID_TX_CONSERVATION'),
+  Literal('UNKNOWN_OBJECT'),
+  Literal('UNFINDABLE_OBJECT')
 )
 
 export const ErrorMessage = Record({
@@ -110,16 +115,56 @@ export const ChainTipMessage = Record({
 })
 export type ChainTipMessageType = Static<typeof ChainTipMessage>
 
+
+/* Definitions for Transactions */
+
+/* Outpoint */
+export const OutPoint = Record({
+  txid: String,
+  index: Number
+})
+export type OutPointType = Static<typeof OutPoint>
+
+/* Input */
+export const Input = Record({
+  outpoint: OutPoint,
+  sig: String
+})
+export type InputType = Static<typeof Input>
+
+/* Output */
+export const Output = Record({
+    pubkey: String,
+    value: Number
+  })
+export type OutputType = Static<typeof Output>
+
+/* Transaction */
+export const Transaction = Record({
+    type: Literal('transaction'),
+    inputs: Array(Input),
+    outputs: Array(Output)
+  })
+export type TransactionType = Static<typeof Transaction>
+
+/* Coinbase Transaction */
+export const CoinbaseTransaction = Record({
+    type: Literal('transaction'),
+    height: Number,
+    outputs: Array(Output)
+  })
+export type CoinbaseTransactionType = Static<typeof CoinbaseTransaction>
+
 /* All */
 export const Message = Union(HelloMessage, 
   GetPeersMessage, PeersMessage, ErrorMessage,
   GetObjectMessage, IHaveObjectMessage, ObjectMessage, 
   GetMempoolMessage, MempoolMessage, GetChainTipMessage, 
-  ChainTipMessage)
+  ChainTipMessage, Transaction, CoinbaseTransaction)
 export type MessageType = Static<typeof Message>
 
 export const Messages = [HelloMessage, 
   GetPeersMessage, PeersMessage, ErrorMessage,
   GetObjectMessage, IHaveObjectMessage, ObjectMessage, 
   GetMempoolMessage, MempoolMessage, GetChainTipMessage, 
-  ChainTipMessage]
+  ChainTipMessage, Transaction, CoinbaseTransaction]
