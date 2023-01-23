@@ -125,7 +125,7 @@ export class Peer {
         await this.store(tx);
         await this.iHaveObject(id);
     }
-
+    
     /* If new obj, store in db and broadcast. If not, do nothing. */
     async receivedObject(sentObject: object) {
         const id = this.getObjectId(sentObject);

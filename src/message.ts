@@ -82,7 +82,7 @@ export const IHaveObjectMessage = Record({
 export type IHaveObjectMessageType = Static<typeof IHaveObjectMessage>;
 
 /* Object */
-export const NestedObjectMessage = Record({
+export const BlockObjectMessage = Record({
     type: Literal('block'),
     txids: Array(String),
     nonce: String,
@@ -90,11 +90,12 @@ export const NestedObjectMessage = Record({
     created: String,
     T: String,
 });
-export type NestedObjectMessageType = Static<typeof NestedObjectMessage>;
+
+export type BlockObjectMessageType = Static<typeof BlockObjectMessage>;
 
 export const ObjectMessage = Record({
     type: Literal('object'),
-    object: NestedObjectMessage,
+    object: Union(BlockObjectMessage, TxObjectMessage),
 });
 export type ObjectMessageType = Static<typeof ObjectMessage>;
 
