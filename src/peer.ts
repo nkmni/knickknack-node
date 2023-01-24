@@ -366,7 +366,7 @@ export class Peer {
                 if (!Transaction.guard(obj)) {
                     return await this.fatalError(
                         new AnnotatedError(
-                            'INVALID_TX_OUTPOINT',
+                            'UNKNOWN_OBJECT',
                             `You sent a transaction with outpoint ids that are not associated with transactions.`,
                         ),
                     );
