@@ -28,22 +28,28 @@ import {
     GetChainTipMessageType,
     ChainTipMessageType,
     AnnotatedError,
-    Input,
-    InputType,
-    OutPoint,
-    OutPointType,
-    Output,
-    OutputType,
-    Transaction,
-    TransactionType,
-    CoinbaseTransaction,
-    CoinbaseTransactionType,
+    TxInput,
+    TxInputType,
+    TxOutpoint,
+    TxOutpointType,
+    TxOutput,
+    TxOutputType,
+    TxObject,
+    TxObjectType,
+    CoinbaseTxObject,
+    CoinbaseTxObjectType,
+    StandardTxObject,
+    StandardTxObjectType,
+    BlockTxObject,
+    BlockTxObjectType,
+    BlockObject,
 } from './message';
 import {peerManager} from './peermanager';
 import {canonicalize} from 'json-canonicalize';
 import {db} from './store';
 import * as ed from '@noble/ed25519';
 import {sign} from 'crypto';
+import {createHash} from 'blake2';
 
 const VERSION = '0.9.0';
 const NAME = 'Knickknack (pset2)';
@@ -114,51 +120,177 @@ export class Peer {
     }
 
     /* Store object in db */
-    async store(sentObject: object) {
+    async store(sentObject: BlockTxObjectType) {
         const id = this.getObjectId(sentObject);
         await db.put(`object-${id}`, sentObject);
     }
 
-    /* Store transaction in db and gossip it*/
-    async storeTx(tx: object) {
-        const id = this.getObjectId(tx);
-        await this.store(tx);
-        await this.iHaveObject(id);
+    async isValidSig(sig: any) {
+        return /^[a-f0-9]{128}$/.test(sig);
     }
-    
+
+    async isValidPubKey(pubkey: string) {
+        return /^[a-f0-9]{64}$/.test(pubkey);
+    }
+
+    async validateTxObject(obj: TxObjectType) {
+        if (StandardTxObject.guard(obj)) {
+            let objWithoutSigs: StandardTxObjectType = JSON.parse(
+                JSON.stringify(obj),
+            );
+            for (let i = 0; i < objWithoutSigs.inputs.length; i++) {
+                objWithoutSigs.inputs[i].sig = null;
+            }
+            const objWithoutSigsStr = canonicalize(objWithoutSigs);
+            let outputSum = 0;
+            for (const output of obj.outputs) {
+                outputSum += output.value;
+            }
+            let inputSum = 0;
+            for (const input of obj.inputs) {
+                try {
+                    let inputTxObject: TxObjectType = await db.get(
+                        `object-${input.outpoint.txid}`,
+                    );
+                    if (
+                        input.outpoint.index < 0 ||
+                        input.outpoint.index >= inputTxObject.outputs.length
+                    ) {
+                        this.sendError(
+                            new AnnotatedError(
+                                'INVALID_FORMAT',
+                                `Invalid outpoint index for input ${
+                                    input.outpoint.txid
+                                } of transaction ${this.getObjectId(obj)}`,
+                            ),
+                        );
+                        return false;
+                    }
+                    if (!this.isValidSig(input.sig)) {
+                        this.sendError(
+                            new AnnotatedError(
+                                'INVALID_TX_SIGNATURE',
+                                `Invalid signature for input ${
+                                    input.outpoint.txid
+                                } of transaction ${this.getObjectId(obj)}`,
+                            ),
+                        );
+                        return false;
+                    }
+                    if (input.sig === null) {
+                        this.sendError(
+                            new AnnotatedError(
+                                'INVALID_TX_SIGNATURE',
+                                `Invalid signature for input ${
+                                    input.outpoint.txid
+                                } of transaction ${this.getObjectId(obj)}`,
+                            ),
+                        );
+                        return false;
+                    }
+                    let inputTxOutput =
+                        inputTxObject.outputs[input.outpoint.index];
+                    const sigArray = Uint8Array.from(
+                        Buffer.from(input.sig, 'hex'),
+                    );
+                    if (
+                        !(await ed.verify(
+                            sigArray,
+                            objWithoutSigsStr,
+                            inputTxOutput.pubkey,
+                        ))
+                    ) {
+                        this.sendError(
+                            new AnnotatedError(
+                                'INVALID_TX_SIGNATURE',
+                                `Invalid signature for input ${
+                                    input.outpoint.txid
+                                } of transaction ${this.getObjectId(obj)}`,
+                            ),
+                        );
+                        return false;
+                    }
+                    inputSum += inputTxOutput.value;
+                } catch (error) {
+                    this.sendError(
+                        new AnnotatedError(
+                            'UNKNOWN_OBJECT',
+                            `Could not find in database: input ${
+                                input.outpoint.txid
+                            } of transaction ${this.getObjectId(obj)}`,
+                        ),
+                    );
+                    return false;
+                }
+            }
+            for (const output of obj.outputs) {
+                if (!this.isValidPubKey(output.pubkey)) {
+                    this.sendError(
+                        new AnnotatedError(
+                            'INVALID_FORMAT',
+                            `Invalid pubkey in transaction ${this.getObjectId(
+                                obj,
+                            )}`,
+                        ),
+                    );
+                    return false;
+                }
+            }
+            if (inputSum !== outputSum) {
+                this.sendError(
+                    new AnnotatedError(
+                        'INVALID_TX_CONSERVATION',
+                        `Value not conserved for transaction ${this.getObjectId(
+                            obj,
+                        )}`,
+                    ),
+                );
+                return false;
+            }
+        } else {
+            return true;
+        }
+        return true;
+    }
+
     /* If new obj, store in db and broadcast. If not, do nothing. */
-    async receivedObject(sentObject: object) {
+    async receivedObject(sentObject: BlockTxObjectType) {
         const id = this.getObjectId(sentObject);
         try {
             // Has object in db, do nothing
             await db.get(`object-${id}`);
         } catch {
             // Store new obj, broadcast to all peers
-            await this.store(sentObject);
-            this.debug(
-                `Broadcasting "ihaveobject" msg to all connected peers for object id: ${id}}`,
-            );
-            peerManager.connectedPeers.forEach(
-                (peer: Peer, address: string) => {
-                    peer.sendMessage({
-                        type: 'ihaveobject',
-                        objectid: `${id}`,
-                    });
-                    this.debug(
-                        `Broadcasted "ihaveobject" msg to client: ${address}`,
-                    );
-                },
-            );
-            return;
+            if (
+                (TxObject.guard(sentObject) &&
+                    (await this.validateTxObject(sentObject))) ||
+                BlockObject.guard(sentObject)
+            ) {
+                await this.store(sentObject);
+                this.debug(
+                    `Broadcasting "ihaveobject" msg to all connected peers for object id: ${id}}`,
+                );
+                peerManager.connectedPeers.forEach(
+                    (peer: Peer, address: string) => {
+                        peer.sendMessage({
+                            type: 'ihaveobject',
+                            objectid: `${id}`,
+                        });
+                        this.debug(
+                            `Broadcasted "ihaveobject" msg to client: ${address}`,
+                        );
+                    },
+                );
+                return;
+            }
         }
     }
 
     /* General Helper Functions */
 
     /* Function to map objects to objectids (canonical -> BLAKE2 hash). */
-    getObjectId(obj: object) {
-        var blake2 = require('blake2');
-        var hash = blake2.createHash('blake2s');
+    getObjectId(obj: BlockTxObjectType) {
+        var hash = createHash('blake2s');
         hash.update(Buffer.from(canonicalize(obj)));
         return hash.digest('hex');
         // already tested/verified using genesis block
@@ -176,44 +308,6 @@ export class Peer {
         this.active = false;
         this.socket.end();
     }
-
-    async isValidHex(val: string) {
-        if (val.toLowerCase() !== val) {
-            return false;
-        }
-        if (/^[a-f0-9]*$/.test(val)) {
-            return false;
-        }
-        return true;
-    }
-
-    async isValidSig(sig: string) {
-        if (sig.length !== 128) {
-            return false;
-        }
-        return this.isValidHex(sig);
-    }
-
-    async isValidPubKey(pubkey: string) {
-        if (pubkey.length !== 64) {
-            return false;
-        }
-        return this.isValidHex(pubkey);
-    }
-
-    // async fromHexString = (hexString) => Uint8Array.from(hexString.match(/.{1,2}/g).map((byte) => parseInt(byte, 16)));
-
-    // async hexToUint8(hex: string){
-    //   if(hex.match(/.{1,2}/g) === null){
-    //     return NaN;
-    //   }else{
-    //     return Uint8Array.from(hex.match(/.{1,2}/g)!.map((byte) => parseInt(byte, 16)));
-    //   }
-    // }
-
-    // async unit8ToHex()
-
-    // const toHexString = (bytes) => bytes.reduce((str, byte) => str + byte.toString(16).padStart(2, '0'), '');
 
     /* On Events */
 
@@ -287,8 +381,6 @@ export class Peer {
             this.onMessageMempool.bind(this),
             this.onMessageGetChainTip.bind(this),
             this.onMessageChainTip.bind(this),
-            this.onTransaction.bind(this),
-            this.onCoinbaseTransaction.bind(this),
         )(msg);
     }
 
@@ -340,136 +432,6 @@ export class Peer {
     async onMessageMempool(msg: MempoolMessageType) {}
     async onMessageGetChainTip(msg: GetChainTipMessageType) {}
     async onMessageChainTip(msg: ChainTipMessageType) {}
-
-    /* Transaction Options */
-    async onTransaction(msg: TransactionType) {
-        var inputSum = 0;
-        var outputSum = 0;
-        //Check formatting for each input
-        for (var input of msg.inputs) {
-            const id = input.outpoint.txid;
-            const index = input.outpoint.index;
-
-            //Check if index is of valid integer format
-            if (!Number.isInteger(index) || index < 0) {
-                return await this.fatalError(
-                    new AnnotatedError(
-                        'INVALID_FORMAT',
-                        `You sent a transaction that has an invalid outpoint index value.`,
-                    ),
-                );
-            }
-
-            //Check if outpoints exist in database
-            try {
-                const obj = await db.get(`object-${id}`);
-                if (!Transaction.guard(obj)) {
-                    return await this.fatalError(
-                        new AnnotatedError(
-                            'UNKNOWN_OBJECT',
-                            `You sent a transaction with outpoint ids that are not associated with transactions.`,
-                        ),
-                    );
-                }
-
-                //Check if index is correct
-                if (obj.outputs.length <= index) {
-                    return await this.fatalError(
-                        new AnnotatedError(
-                            'INVALID_TX_OUTPOINT',
-                            `The transaction outpoint index is too large.`,
-                        ),
-                    );
-                }
-
-                //Verify signature
-                const pubkey = obj.outputs[index].pubkey;
-                const sig = input.sig;
-                const stringMsg = JSON.stringify(msg);
-
-                if (!this.isValidPubKey(pubkey)) {
-                    return await this.fatalError(
-                        new AnnotatedError(
-                            'INVALID_FORMAT',
-                            `You sent a transaction that has an invalid outpoint public key format.`,
-                        ),
-                    );
-                }
-
-                if (!this.isValidSig(sig)) {
-                    return await this.fatalError(
-                        new AnnotatedError(
-                            'INVALID_FORMAT',
-                            `You sent a transaction that has an invalid outpoint signature format.`,
-                        ),
-                    );
-                }
-
-                /* TO DO: Verify signature using ed25519, and figure out how to convert from hex to uint8
-          here's what I found out:
-          - ed25519 doesn't need to be changed to uint8 (according to their git), if this is not true I tried to write some conversion methods above, not sure if/how they work
-          - I'm pretty sure we need the original string version of the message so I converted it back 
-          - I think the line I've written below should cover the verification, as long as keys and messages are created using ed, but can't check that yet*/
-
-                const isValid = await ed.verify(sig, stringMsg, pubkey);
-
-                if (!isValid) {
-                    return await this.fatalError(
-                        new AnnotatedError(
-                            'INVALID_TX_SIGNATURE',
-                            `The transaction is invalid.`,
-                        ),
-                    );
-                }
-
-                inputSum += obj.outputs[index].value;
-            } catch {
-                return await this.fatalError(
-                    new AnnotatedError(
-                        'INVALID_TX_OUTPOINT',
-                        `You sent a transaction with outpoints that do not exist in the database.`,
-                    ),
-                );
-            }
-        }
-
-        //Output validation
-        for (var output of msg.outputs) {
-            if (!this.isValidPubKey(output.pubkey)) {
-                return await this.fatalError(
-                    new AnnotatedError(
-                        'INVALID_FORMAT',
-                        `You sent a transaction that has an invalid output public key format.`,
-                    ),
-                );
-            }
-            if (!Number.isInteger(output.value) || output.value < 0) {
-                return await this.fatalError(
-                    new AnnotatedError(
-                        'INVALID_FORMAT',
-                        `You sent a transaction that has an invalid output value.`,
-                    ),
-                );
-            }
-            outputSum += output.value;
-        }
-
-        //Weak law of conservation check
-        if (inputSum < outputSum) {
-            return await this.fatalError(
-                new AnnotatedError(
-                    'INVALID_TX_CONSERVATION',
-                    `The transaction does not satisfy the weak law of conservation.`,
-                ),
-            );
-        }
-
-        await this.storeTx(msg);
-    }
-
-    async onCoinbaseTransaction(msg: CoinbaseTransactionType) {
-        await this.storeTx(msg);
-    }
 
     /* Logging */
     log(level: string, message: string) {
