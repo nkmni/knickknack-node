@@ -1,0 +1,2 @@
+{"agent":"Knickknack (pset2)","type":"hello","version":"0.9.0"}
+{ "type": "object", "object": { "type": "transaction", "inputs": [ { "outpoint": { "txid": "f71408bf847d7dd15824574a7cd4afdfaaa2866286910675cd3fc371507aa196", "index": 0 }, "sig": null } ], "outputs": [ { "pubkey": "077a2683d776a71139fd4db4d00c16703ba0753fc8bdc4bd6fc56614e659cde3", "value": 5100000000 } ] } }
