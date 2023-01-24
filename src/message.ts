@@ -90,39 +90,7 @@ export const BlockObjectMessage = Record({
     created: String,
     T: String,
 });
-
 export type BlockObjectMessageType = Static<typeof BlockObjectMessage>;
-
-export const ObjectMessage = Record({
-    type: Literal('object'),
-    object: Union(BlockObjectMessage, TxObjectMessage),
-});
-export type ObjectMessageType = Static<typeof ObjectMessage>;
-
-/* GetMempool */
-export const GetMempoolMessage = Record({
-    type: Literal('getmempool'),
-});
-export type GetMempoolMessageType = Static<typeof GetMempoolMessage>;
-
-/* Mempool */
-export const MempoolMessage = Record({
-    type: Literal('mempool'),
-});
-export type MempoolMessageType = Static<typeof MempoolMessage>;
-
-/* Get Chain Tip */
-export const GetChainTipMessage = Record({
-    type: Literal('getchaintip'),
-});
-export type GetChainTipMessageType = Static<typeof GetChainTipMessage>;
-
-/* Chain Tip */
-export const ChainTipMessage = Record({
-    type: Literal('chaintip'),
-    blockid: String,
-});
-export type ChainTipMessageType = Static<typeof ChainTipMessage>;
 
 /* Definitions for Transactions */
 
@@ -162,6 +130,37 @@ export const CoinbaseTransaction = Record({
     outputs: Array(Output),
 });
 export type CoinbaseTransactionType = Static<typeof CoinbaseTransaction>;
+
+export const ObjectMessage = Record({
+    type: Literal('object'),
+    object: Union(BlockObjectMessage, Transaction),
+});
+export type ObjectMessageType = Static<typeof ObjectMessage>;
+
+/* GetMempool */
+export const GetMempoolMessage = Record({
+    type: Literal('getmempool'),
+});
+export type GetMempoolMessageType = Static<typeof GetMempoolMessage>;
+
+/* Mempool */
+export const MempoolMessage = Record({
+    type: Literal('mempool'),
+});
+export type MempoolMessageType = Static<typeof MempoolMessage>;
+
+/* Get Chain Tip */
+export const GetChainTipMessage = Record({
+    type: Literal('getchaintip'),
+});
+export type GetChainTipMessageType = Static<typeof GetChainTipMessage>;
+
+/* Chain Tip */
+export const ChainTipMessage = Record({
+    type: Literal('chaintip'),
+    blockid: String,
+});
+export type ChainTipMessageType = Static<typeof ChainTipMessage>;
 
 /* All */
 export const Message = Union(
