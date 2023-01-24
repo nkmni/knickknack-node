@@ -133,7 +133,7 @@ export type CoinbaseTransactionType = Static<typeof CoinbaseTransaction>;
 
 export const ObjectMessage = Record({
     type: Literal('object'),
-    object: Union(BlockObjectMessage, Transaction),
+    object: Union(BlockObjectMessage, Transaction, CoinbaseTransaction),
 });
 export type ObjectMessageType = Static<typeof ObjectMessage>;
 
