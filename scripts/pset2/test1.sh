@@ -1,1 +1,0 @@
-(cat scripts/pset2/test1.txt; sleep 4) | nc 45.77.3.115 18018
