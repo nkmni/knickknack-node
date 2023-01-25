@@ -96,7 +96,7 @@ export const BlockObject = Record({
     txids: Array(String),
     nonce: String,
     previd: String,
-    created: String,
+    created: Number,
     T: String,
 });
 export type BlockObjectType = Static<typeof BlockObject>;
