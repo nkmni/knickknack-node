@@ -63,7 +63,7 @@ class PeerManager {
 
     broadcast(obj: object) {
         for (const [address, peer] of Object.entries(this.connectedPeers)) {
-            if (peer.active & peer.handshakeCompleted) {
+            if (peer.active && peer.handshakeCompleted) {
                 const message: string = canonicalize(obj);
                 peer.sendMessage(message);
             }
