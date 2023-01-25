@@ -274,6 +274,9 @@ export class Peer {
             // Has object in db, do nothing
             await db.get(`object-${id}`);
         } catch {
+            this.debug(
+                `In broadcasting`,
+            );
             // Store new obj, broadcast to all peers
             if (
                 (TxObject.guard(sentObject) &&
@@ -329,6 +332,8 @@ export class Peer {
         this.active = true;
         await this.sendHello();
         await this.sendGetPeers();
+        this.debug (`Adding ${this.socket.peerAddr} to connectedPeers`);
+        peerManager.addConnectedPeer(this);
     }
 
     async onTimeout() {
