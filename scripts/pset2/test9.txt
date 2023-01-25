@@ -1,0 +1,2 @@
+{"agent":"Grader 1","type":"hello","version":"0.9.0"}
+{"object":{"height":0,"outputs":[{"pubkey":"fafaae33b3dd33d6e56b8d6280ac6e774b8d5ffd98b3e11dcf945e7cb362e809","value":50000000000}],"type":"transaction"},"type":"object"}

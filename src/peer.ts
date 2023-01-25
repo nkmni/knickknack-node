@@ -144,6 +144,20 @@ export class Peer {
             const objWithoutSigsStr = canonicalize(objWithoutSigs);
             let outputSum = 0;
             for (const output of obj.outputs) {
+                //Check format of output value
+                if (
+                    output.value < 0 || !Number.isInteger(output.value)
+                ) {
+                    this.sendError(
+                        new AnnotatedError(
+                            'INVALID_FORMAT',
+                            `Invalid output value for output with public key ${
+                                output.pubkey
+                            } of transaction ${this.getObjectId(obj)}`,
+                        ),
+                    );
+                    return false;
+                }
                 outputSum += output.value;
             }
             let inputSum = 0;
