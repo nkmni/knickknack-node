@@ -176,7 +176,7 @@ export class Peer {
             let inputSum = 0;
             for (const input of obj.inputs) {
                 try {
-                    let inputTx: TxObjectType = await db.get(
+                    const inputTx: TxObjectType = await db.get(
                         `object-${input.outpoint.txid}`,
                     );
                     if (
