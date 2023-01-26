@@ -208,12 +208,17 @@ export class Peer {
                     const sigArray = Uint8Array.from(
                         Buffer.from(input.sig, 'hex'),
                     );
-                    this.debug(sigArray.toString());
+                    const objWithoutSigsArray = Uint8Array.from(
+                        Buffer.from(objWithoutSigsStr),
+                    );
+                    const itoPubKeyArray = Uint8Array.from(
+                        Buffer.from(inputTxOutput.pubkey, 'hex'),
+                    );
                     if (
                         !(await ed.verify(
-                            input.sig,
-                            objWithoutSigsStr,
-                            inputTxOutput.pubkey,
+                            sigArray,
+                            objWithoutSigsArray,
+                            itoPubKeyArray,
                         ))
                     ) {
                         this.sendError(
