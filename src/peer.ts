@@ -208,6 +208,7 @@ export class Peer {
                     const sigArray = Uint8Array.from(
                         Buffer.from(input.sig, 'hex'),
                     );
+                    this.debug(sigArray.toString());
                     if (
                         !(await ed.verify(
                             input.sig,
