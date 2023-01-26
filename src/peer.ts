@@ -226,7 +226,7 @@ export class Peer {
                         return false;
                     }
                     inputSum += inputTxOutput.value;
-                } catch (error) {
+                } catch (error: any) {
                     this.debug(
                         `Could not find input ${input.outpoint.txid} in database. Error: ${error.message}`,
                     );
