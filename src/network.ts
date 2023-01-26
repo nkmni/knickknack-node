@@ -30,17 +30,17 @@ export class Network {
         );
         server.listen(bindPort, bindIP);
 
-        for (const peerAddr of peerManager.knownPeers) {
-            logger.info(`Attempting connection to known peer ${peerAddr}`);
-            try {
-                const peer = new Peer(MessageSocket.createClient(peerAddr));
-                this.peers.push(peer);
-            } catch (e: any) {
-                logger.warn(
-                    `Failed to create connection to peer ${peerAddr}: ${e.message}`,
-                );
-            }
-        }
+        // for (const peerAddr of peerManager.knownPeers) {
+        //     logger.info(`Attempting connection to known peer ${peerAddr}`);
+        //     try {
+        //         const peer = new Peer(MessageSocket.createClient(peerAddr));
+        //         this.peers.push(peer);
+        //     } catch (e: any) {
+        //         logger.warn(
+        //             `Failed to create connection to peer ${peerAddr}: ${e.message}`,
+        //         );
+        //     }
+        // }
     }
 }
 
