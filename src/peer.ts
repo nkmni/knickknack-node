@@ -175,45 +175,57 @@ export class Peer {
             }
             let inputSum = 0;
             for (const input of obj.inputs) {
+                let inputTx: TxObjectType;
                 try {
-                    const inputTx: TxObjectType = await db.get(
-                        `object-${input.outpoint.txid}`,
+                    inputTx = await db.get(`object-${input.outpoint.txid}`);
+                } catch (error: any) {
+                    this.debug(
+                        `Could not find input ${input.outpoint.txid} in database. Error: ${error.message}`,
                     );
-                    if (
-                        input.outpoint.index < 0 ||
-                        input.outpoint.index >= inputTx.outputs.length
-                    ) {
-                        this.sendError(
-                            new AnnotatedError(
-                                'INVALID_TX_OUTPOINT',
-                                `Invalid outpoint index for input ${
-                                    input.outpoint.txid
-                                } of transaction ${this.getObjectId(obj)}`,
-                            ),
-                        );
-                        return false;
-                    }
-                    if (input.sig === null || !this.isValidSig(input.sig)) {
-                        this.sendError(
-                            new AnnotatedError(
-                                'INVALID_TX_SIGNATURE',
-                                `Invalid signature for input ${
-                                    input.outpoint.txid
-                                } of transaction ${this.getObjectId(obj)}`,
-                            ),
-                        );
-                        return false;
-                    }
-                    const inputTxOutput = inputTx.outputs[input.outpoint.index];
-                    const sigArray = Uint8Array.from(
-                        Buffer.from(input.sig, 'hex'),
+                    this.sendError(
+                        new AnnotatedError(
+                            'UNKNOWN_OBJECT',
+                            `Could not find in database: input ${
+                                input.outpoint.txid
+                            } of transaction ${this.getObjectId(obj)}`,
+                        ),
                     );
-                    const objWithoutSigsArray = Uint8Array.from(
-                        Buffer.from(objWithoutSigsStr),
+                    return false;
+                }
+                if (
+                    input.outpoint.index < 0 ||
+                    input.outpoint.index >= inputTx.outputs.length
+                ) {
+                    this.sendError(
+                        new AnnotatedError(
+                            'INVALID_TX_OUTPOINT',
+                            `Invalid outpoint index for input ${
+                                input.outpoint.txid
+                            } of transaction ${this.getObjectId(obj)}`,
+                        ),
                     );
-                    const itoPubKeyArray = Uint8Array.from(
-                        Buffer.from(inputTxOutput.pubkey, 'hex'),
+                    return false;
+                }
+                if (input.sig === null || !this.isValidSig(input.sig)) {
+                    this.sendError(
+                        new AnnotatedError(
+                            'INVALID_TX_SIGNATURE',
+                            `Invalid signature for input ${
+                                input.outpoint.txid
+                            } of transaction ${this.getObjectId(obj)}`,
+                        ),
                     );
+                    return false;
+                }
+                const inputTxOutput = inputTx.outputs[input.outpoint.index];
+                const sigArray = Uint8Array.from(Buffer.from(input.sig, 'hex'));
+                const objWithoutSigsArray = Uint8Array.from(
+                    Buffer.from(objWithoutSigsStr),
+                );
+                const itoPubKeyArray = Uint8Array.from(
+                    Buffer.from(inputTxOutput.pubkey, 'hex'),
+                );
+                try {
                     if (
                         !(await ed.verify(
                             sigArray,
@@ -231,21 +243,18 @@ export class Peer {
                         );
                         return false;
                     }
-                    inputSum += inputTxOutput.value;
                 } catch (error: any) {
-                    this.debug(
-                        `Could not find input ${input.outpoint.txid} in database. Error: ${error.message}`,
-                    );
                     this.sendError(
                         new AnnotatedError(
-                            'UNKNOWN_OBJECT',
-                            `Could not find in database: input ${
+                            'INVALID_TX_SIGNATURE',
+                            `Invalid signature for input ${
                                 input.outpoint.txid
                             } of transaction ${this.getObjectId(obj)}`,
                         ),
                     );
                     return false;
                 }
+                inputSum += inputTxOutput.value;
             }
             if (inputSum < outputSum) {
                 this.sendError(
