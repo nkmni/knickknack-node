@@ -204,13 +204,13 @@ export class Peer {
                         );
                         return false;
                     }
-                    let inputTxOutput = inputTx.outputs[input.outpoint.index];
+                    const inputTxOutput = inputTx.outputs[input.outpoint.index];
                     const sigArray = Uint8Array.from(
                         Buffer.from(input.sig, 'hex'),
                     );
                     if (
                         !(await ed.verify(
-                            sigArray,
+                            input.sig,
                             objWithoutSigsStr,
                             inputTxOutput.pubkey,
                         ))
