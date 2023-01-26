@@ -125,7 +125,7 @@ export class Peer {
         await db.put(`object-${id}`, sentObject);
     }
 
-    async isValidSig(sig: any) {
+    async isValidSig(sig: string) {
         return /^[a-f0-9]{128}$/.test(sig);
     }
 
@@ -133,21 +133,23 @@ export class Peer {
         return /^[a-f0-9]{64}$/.test(pubkey);
     }
 
+    getNullSigsTxObjMessage(obj: StandardTxObjectType) {
+        let objWithoutSigs: StandardTxObjectType = JSON.parse(
+            JSON.stringify(obj),
+        );
+        for (let i = 0; i < objWithoutSigs.inputs.length; i++) {
+            objWithoutSigs.inputs[i].sig = null;
+        }
+        return canonicalize(objWithoutSigs);
+    }
+
     async validateTxObject(obj: TxObjectType) {
         if (StandardTxObject.guard(obj)) {
-            let objWithoutSigs: StandardTxObjectType = JSON.parse(
-                JSON.stringify(obj),
-            );
-            for (let i = 0; i < objWithoutSigs.inputs.length; i++) {
-                objWithoutSigs.inputs[i].sig = null;
-            }
-            const objWithoutSigsStr = canonicalize(objWithoutSigs);
+            const objWithoutSigsStr = this.getNullSigsTxObjMessage(obj);
             let outputSum = 0;
             for (const output of obj.outputs) {
                 //Check format of output value
-                if (
-                    output.value < 0 || !Number.isInteger(output.value)
-                ) {
+                if (output.value < 0 || !Number.isInteger(output.value)) {
                     this.sendError(
                         new AnnotatedError(
                             'INVALID_FORMAT',
@@ -158,21 +160,32 @@ export class Peer {
                     );
                     return false;
                 }
+                if (!this.isValidPubKey(output.pubkey)) {
+                    this.sendError(
+                        new AnnotatedError(
+                            'INVALID_FORMAT',
+                            `Invalid pubkey in transaction ${this.getObjectId(
+                                obj,
+                            )}`,
+                        ),
+                    );
+                    return false;
+                }
                 outputSum += output.value;
             }
             let inputSum = 0;
             for (const input of obj.inputs) {
                 try {
-                    let inputTxObject: TxObjectType = await db.get(
+                    let inputTx: TxObjectType = await db.get(
                         `object-${input.outpoint.txid}`,
                     );
                     if (
                         input.outpoint.index < 0 ||
-                        input.outpoint.index >= inputTxObject.outputs.length
+                        input.outpoint.index >= inputTx.outputs.length
                     ) {
                         this.sendError(
                             new AnnotatedError(
-                                'INVALID_FORMAT',
+                                'INVALID_TX_OUTPOINT',
                                 `Invalid outpoint index for input ${
                                     input.outpoint.txid
                                 } of transaction ${this.getObjectId(obj)}`,
@@ -180,7 +193,7 @@ export class Peer {
                         );
                         return false;
                     }
-                    if (!this.isValidSig(input.sig)) {
+                    if (input.sig === null || !this.isValidSig(input.sig)) {
                         this.sendError(
                             new AnnotatedError(
                                 'INVALID_TX_SIGNATURE',
@@ -191,19 +204,7 @@ export class Peer {
                         );
                         return false;
                     }
-                    if (input.sig === null) {
-                        this.sendError(
-                            new AnnotatedError(
-                                'INVALID_TX_SIGNATURE',
-                                `Invalid signature for input ${
-                                    input.outpoint.txid
-                                } of transaction ${this.getObjectId(obj)}`,
-                            ),
-                        );
-                        return false;
-                    }
-                    let inputTxOutput =
-                        inputTxObject.outputs[input.outpoint.index];
+                    let inputTxOutput = inputTx.outputs[input.outpoint.index];
                     const sigArray = Uint8Array.from(
                         Buffer.from(input.sig, 'hex'),
                     );
@@ -237,20 +238,7 @@ export class Peer {
                     return false;
                 }
             }
-            for (const output of obj.outputs) {
-                if (!this.isValidPubKey(output.pubkey)) {
-                    this.sendError(
-                        new AnnotatedError(
-                            'INVALID_FORMAT',
-                            `Invalid pubkey in transaction ${this.getObjectId(
-                                obj,
-                            )}`,
-                        ),
-                    );
-                    return false;
-                }
-            }
-            if (inputSum !== outputSum) {
+            if (inputSum < outputSum) {
                 this.sendError(
                     new AnnotatedError(
                         'INVALID_TX_CONSERVATION',
@@ -329,6 +317,7 @@ export class Peer {
         this.active = true;
         await this.sendHello();
         await this.sendGetPeers();
+        peerManager.addConnectedPeer(this);
     }
 
     async onTimeout() {

@@ -35,7 +35,6 @@ export class Network {
             try {
                 const peer = new Peer(MessageSocket.createClient(peerAddr));
                 this.peers.push(peer);
-                peerManager.addConnectedPeer(peer);
             } catch (e: any) {
                 logger.warn(
                     `Failed to create connection to peer ${peerAddr}: ${e.message}`,
