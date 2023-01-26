@@ -160,6 +160,17 @@ export class Peer {
                     );
                     return false;
                 }
+                if (!this.isValidPubKey(output.pubkey)) {
+                    this.sendError(
+                        new AnnotatedError(
+                            'INVALID_FORMAT',
+                            `Invalid pubkey in transaction ${this.getObjectId(
+                                obj,
+                            )}`,
+                        ),
+                    );
+                    return false;
+                }
                 outputSum += output.value;
             }
             let inputSum = 0;
@@ -174,7 +185,7 @@ export class Peer {
                     ) {
                         this.sendError(
                             new AnnotatedError(
-                                'INVALID_FORMAT',
+                                'INVALID_TX_OUTPOINT',
                                 `Invalid outpoint index for input ${
                                     input.outpoint.txid
                                 } of transaction ${this.getObjectId(obj)}`,
@@ -222,19 +233,6 @@ export class Peer {
                             `Could not find in database: input ${
                                 input.outpoint.txid
                             } of transaction ${this.getObjectId(obj)}`,
-                        ),
-                    );
-                    return false;
-                }
-            }
-            for (const output of obj.outputs) {
-                if (!this.isValidPubKey(output.pubkey)) {
-                    this.sendError(
-                        new AnnotatedError(
-                            'INVALID_FORMAT',
-                            `Invalid pubkey in transaction ${this.getObjectId(
-                                obj,
-                            )}`,
                         ),
                     );
                     return false;
