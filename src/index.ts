@@ -1,7 +1,10 @@
-import {Network} from './network';
+import { logger } from './logger'
+import { network } from './network'
 
-const PORT = 18018;
-const HOST = '45.77.3.115';
+const BIND_PORT = 18018
+const BIND_IP = '0.0.0.0'
 
-const network = new Network();
-network.init(PORT, HOST);
+logger.info(`Malibu - A Marabu node`)
+logger.info(`Dionysis Zindros <dionyziz@stanford.edu>`)
+
+network.init(BIND_PORT, BIND_IP)
