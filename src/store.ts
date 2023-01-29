@@ -2,10 +2,16 @@ export type ObjectId = string;
 
 import level from 'level-ts';
 import { canonicalize } from 'json-canonicalize';
-import { AnnotatedError, TransactionObject, ObjectType } from './message';
+import {
+  AnnotatedError,
+  TransactionObject,
+  ObjectType,
+  ObjectTxOrBlock,
+} from './message';
 import { Transaction } from './transaction';
 import { logger } from './logger';
 import { hash } from './crypto/hash';
+import { Block } from './block';
 
 export const db = new level('./db');
 
@@ -43,10 +49,16 @@ export class ObjectStorage {
     return await db.put(`object:${this.id(object)}`, object);
   }
   static async validate(object: ObjectType) {
-    if (!TransactionObject.guard(object)) {
+    if (!ObjectTxOrBlock.guard(object)) {
       throw new AnnotatedError('INVALID_FORMAT', 'Failed to parse object');
     }
-    const tx = Transaction.fromNetworkObject(object);
-    await tx.validate();
+    if (TransactionObject.guard(object)) {
+      const tx = Transaction.fromNetworkObject(object);
+      await tx.validate();
+    } else {
+      // It's a block object.
+      const block = Block.fromNetworkObject(object);
+      await block.validate();
+    }
   }
 }

@@ -20,7 +20,7 @@ import { network } from './network';
 import { ObjectId } from './store';
 
 const VERSION = '0.9.0';
-const NAME = 'Malibu (pset2)';
+const NAME = 'Knickknack (pset3)';
 
 export class Peer {
   active: boolean = false;
