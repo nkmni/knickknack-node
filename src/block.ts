@@ -100,41 +100,43 @@ export class Block {
     // check that there are no coinbase txs at non-zero indices
     // and that no other tx in block spends the coinbase tx if present.
     // sum fees while you're at it.
-    const firstTxid = this.txids[0];
-    const firstTxObj = await ObjectStorage.get(firstTxid);
-    const firstTxIsCoinbase = CoinbaseTransactionObject.guard(firstTxObj);
-    let sumFees = 0;
-    for (let i = 1; i < this.txids.length; ++i) {
-      const txid = this.txids[i];
-      const txObj: TransactionObjectType = await ObjectStorage.get(txid);
-      if (CoinbaseTransactionObject.guard(txObj)) {
-        throw new AnnotatedError(
-          'INVALID_BLOCK_COINBASE',
-          `Block ${this.blockid} contains coinbase transaction ${txid} at a non-zero index.`,
-        );
-      }
-      const tx = Transaction.fromNetworkObject(txObj);
-      sumFees += await tx.calculateFee();
-      if (firstTxIsCoinbase) {
-        for (const input of txObj.inputs) {
-          if (input.outpoint.txid === firstTxid) {
-            throw new AnnotatedError(
-              'INVALID_TX_OUTPOINT',
-              `Block ${this.blockid} contains transaction ${txid} that spends coinbase transaction ${firstTxid} in same block.`,
-            );
+    if (this.txids.length > 0) {
+      const firstTxid = this.txids[0];
+      const firstTxObj = await ObjectStorage.get(firstTxid);
+      const firstTxIsCoinbase = CoinbaseTransactionObject.guard(firstTxObj);
+      let sumFees = 0;
+      for (let i = 1; i < this.txids.length; ++i) {
+        const txid = this.txids[i];
+        const txObj: TransactionObjectType = await ObjectStorage.get(txid);
+        if (CoinbaseTransactionObject.guard(txObj)) {
+          throw new AnnotatedError(
+            'INVALID_BLOCK_COINBASE',
+            `Block ${this.blockid} contains coinbase transaction ${txid} at a non-zero index.`,
+          );
+        }
+        const tx = Transaction.fromNetworkObject(txObj);
+        sumFees += await tx.calculateFee();
+        if (firstTxIsCoinbase) {
+          for (const input of txObj.inputs) {
+            if (input.outpoint.txid === firstTxid) {
+              throw new AnnotatedError(
+                'INVALID_TX_OUTPOINT',
+                `Block ${this.blockid} contains transaction ${txid} that spends coinbase transaction ${firstTxid} in same block.`,
+              );
+            }
           }
         }
       }
-    }
-    // validate coinbase transaction if present
-    if (
-      firstTxIsCoinbase &&
-      firstTxObj.outputs[0].value > 50 * 10 ** 12 + sumFees
-    ) {
-      throw new AnnotatedError(
-        'INVALID_BLOCK_COINBASE',
-        `Block ${this.blockid} contains coinbase transaction ${firstTxid} with output value greater than block reward plus fees.`,
-      );
+      // validate coinbase transaction if present
+      if (
+        firstTxIsCoinbase &&
+        firstTxObj.outputs[0].value > 50 * 10 ** 12 + sumFees
+      ) {
+        throw new AnnotatedError(
+          'INVALID_BLOCK_COINBASE',
+          `Block ${this.blockid} contains coinbase transaction ${firstTxid} with output value greater than block reward plus fees.`,
+        );
+      }
     }
   }
   toNetworkObject(): BlockObjectType {
