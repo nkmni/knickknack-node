@@ -12,6 +12,10 @@ import {
   GetObjectMessageType,
   ObjectMessageType,
   ErrorMessageType,
+  GetMempoolMessageType,
+  MempoolMessageType,
+  GetChainTipMessageType,
+  ChainTipMessageType,
 } from './message';
 import { peerManager } from './peermanager';
 import { canonicalize } from 'json-canonicalize';
@@ -152,6 +156,10 @@ export class Peer {
       this.onMessageGetObject.bind(this),
       this.onMessageObject.bind(this),
       this.onMessageError.bind(this),
+      this.onMessageGetMempool.bind(this),
+      this.onMessageMempool.bind(this),
+      this.onMessageGetChainTip.bind(this),
+      this.onMessageChainTip.bind(this),
     )(msg);
   }
   async onMessageHello(msg: HelloMessageType) {
@@ -234,6 +242,10 @@ export class Peer {
   async onMessageError(msg: ErrorMessageType) {
     this.warn(`Peer reported error: ${msg.name}`);
   }
+  async onMessageGetMempool(msg: GetMempoolMessageType) {}
+  async onMessageMempool(msg: MempoolMessageType) {}
+  async onMessageGetChainTip(msg: GetChainTipMessageType) {}
+  async onMessageChainTip(msg: ChainTipMessageType) {}
   log(level: string, message: string, ...args: any[]) {
     logger.log(
       level,

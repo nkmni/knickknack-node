@@ -151,6 +151,31 @@ export class AnnotatedError extends Error {
   }
 }
 
+/* GetMempool */
+export const GetMempoolMessage = Record({
+  type: Literal('getmempool'),
+});
+export type GetMempoolMessageType = Static<typeof GetMempoolMessage>;
+
+/* Mempool */
+export const MempoolMessage = Record({
+  type: Literal('mempool'),
+});
+export type MempoolMessageType = Static<typeof MempoolMessage>;
+
+/* Get Chain Tip */
+export const GetChainTipMessage = Record({
+  type: Literal('getchaintip'),
+});
+export type GetChainTipMessageType = Static<typeof GetChainTipMessage>;
+
+/* Chain Tip */
+export const ChainTipMessage = Record({
+  type: Literal('chaintip'),
+  blockid: String,
+});
+export type ChainTipMessageType = Static<typeof ChainTipMessage>;
+
 export const Messages = [
   HelloMessage,
   GetPeersMessage,
@@ -159,6 +184,10 @@ export const Messages = [
   GetObjectMessage,
   ObjectMessage,
   ErrorMessage,
+  GetMempoolMessage,
+  MempoolMessage,
+  GetChainTipMessage,
+  ChainTipMessage,
 ];
 export const Message = Union(
   HelloMessage,
@@ -168,5 +197,9 @@ export const Message = Union(
   GetObjectMessage,
   ObjectMessage,
   ErrorMessage,
+  GetMempoolMessage,
+  MempoolMessage,
+  GetChainTipMessage,
+  ChainTipMessage,
 );
 export type MessageType = Static<typeof Message>;
