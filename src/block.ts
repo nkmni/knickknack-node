@@ -7,6 +7,7 @@ import {
 } from './message';
 import { network } from './network';
 import { Transaction } from './transaction';
+import { resolve } from 'path';
 
 export class Block {
   blockid: ObjectId;
@@ -72,28 +73,32 @@ export class Block {
       this.txids.map(async (txid, i) => {
         if (!(await ObjectStorage.exists(txid))) {
           // txid not in database
-
           // broadcast getobject to all peers
           network.broadcastGetObject(txid);
 
-          // wait 10 seconds before giving up on finding missing transaction
-          const timeout = setTimeout(() => {
-            throw new AnnotatedError(
-              'UNFINDABLE_OBJECT',
-              `Block ${this.blockid} contains transaction ${txid} that could not be found.`,
-            );
-          }, 10000);
+          return new Promise<void>((resolve, reject) => {
+            // wait 10 seconds before giving up on finding missing transaction
+            const timeout = setTimeout(() => {
+              reject(
+                new AnnotatedError(
+                  'UNFINDABLE_OBJECT',
+                  `Block ${this.blockid} contains transaction ${txid} that could not be found.`,
+                ),
+              );
+            }, 10000);
 
-          // callback for when new object shows up in storage
-          const checkForTx = (objectid: string) => {
-            if (txid === objectid) {
-              clearTimeout(timeout);
-              storageEventEmitter.off('put', checkForTx);
-            }
-          };
+            // callback for when new object shows up in storage
+            const checkForTx = (objectid: string) => {
+              if (txid === objectid) {
+                clearTimeout(timeout);
+                storageEventEmitter.off('put', checkForTx);
+                resolve();
+              }
+            };
 
-          // turn on callback on object
-          storageEventEmitter.on('put', checkForTx);
+            // turn on callback on object
+            storageEventEmitter.on('put', checkForTx);
+          });
         }
       }),
     );
