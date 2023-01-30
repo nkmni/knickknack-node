@@ -7,6 +7,7 @@ import { peerManager } from './peermanager';
 const TIMEOUT_DELAY = 10000; // 10 seconds
 const MAX_BUFFER_SIZE = 100 * 1024; // 100 kB
 
+export const networkEventEmitter = new EventEmitter();
 class Network {
   peers: Peer[] = [];
 
@@ -41,6 +42,16 @@ class Network {
         );
       }
     }
+
+    networkEventEmitter.on('search', objectid => {
+      logger.info(`Broadcasting getobject to all peers: ${objectid}`);
+
+      for (const peer of this.peers) {
+        if (peer.active) {
+          peer.sendGetObject(objectid);
+        }
+      }
+    });
   }
   broadcast(obj: object) {
     logger.info(`Broadcasting object to all peers: %o`, obj);

@@ -12,8 +12,11 @@ import { Transaction } from './transaction';
 import { logger } from './logger';
 import { hash } from './crypto/hash';
 import { Block } from './block';
+import { EventEmitter } from 'events';
 
 export const db = new level('./db');
+
+export const storageEventEmitter = new EventEmitter();
 
 export class ObjectStorage {
   static id(obj: any) {
@@ -46,6 +49,7 @@ export class ObjectStorage {
   }
   static async put(object: any) {
     logger.debug(`Storing object with id ${this.id(object)}: %o`, object);
+    storageEventEmitter.emit('put', this.id(object));
     return await db.put(`object:${this.id(object)}`, object);
   }
   static async validate(object: ObjectType) {

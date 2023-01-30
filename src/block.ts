@@ -1,7 +1,8 @@
-import { ObjectId, ObjectStorage } from './store';
+import { ObjectId, ObjectStorage, storageEventEmitter } from './store';
 import { AnnotatedError, BlockObject, BlockObjectType } from './message';
 import { PublicKey, Signature, ver } from './crypto/signature';
 import { canonicalize } from 'json-canonicalize';
+import { networkEventEmitter } from './network';
 
 export class Block {
   blockid: ObjectId;
@@ -65,11 +66,36 @@ export class Block {
         `Block ${this.blockid} has invalid Proof of Work`,
       );
     }
-    for (const txid in this.txids) {
-      if (!(await ObjectStorage.exists(txid))) {
-        // not sure how to do this
-      }
-    }
+    await Promise.all(
+      this.txids.map(async (txid, i) => {
+        if (!(await ObjectStorage.exists(txid))) {
+          // txid not in database
+
+          // emit search to broadcast getobject to all peers
+          networkEventEmitter.emit('search', txid);
+
+          // wait 10 seconds before giving up on finding missing transaction
+          const timeout = setTimeout(() => {
+            throw new AnnotatedError(
+              'UNFINDABLE_OBJECT',
+              `Block ${this.blockid} contains transaction ${txid} that could not be found.`,
+            );
+          }, 10000);
+
+          // callback for when new object shows up in storage
+          const checkForTx = (objectid: string) => {
+            if (txid === objectid) {
+              clearTimeout(timeout);
+              storageEventEmitter.off('put', checkForTx);
+            }
+          };
+
+          // turn on callback on object
+          storageEventEmitter.on('put', checkForTx);
+        } else {
+        }
+      }),
+    );
   }
   toNetworkObject(): BlockObjectType {
     return {
