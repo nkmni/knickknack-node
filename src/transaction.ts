@@ -124,6 +124,23 @@ export class Transaction {
     this.outputs = outputs;
     this.height = height;
   }
+  async calculateFee() {
+    const inputValues = await Promise.all(
+      this.inputs.map(async input => {
+        const prevOutput = await input.outpoint.resolve();
+        return prevOutput.value;
+      }),
+    );
+    let sumInputs = 0;
+    let sumOutputs = 0;
+    for (const inputValue of inputValues) {
+      sumInputs += inputValue;
+    }
+    for (const output of this.outputs) {
+      sumOutputs += output.value;
+    }
+    return sumInputs - sumOutputs;
+  }
   async validate() {
     const unsignedTxStr = canonicalize(this.toNetworkObject(false));
 

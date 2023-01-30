@@ -3,11 +3,10 @@ import { logger } from './logger';
 import { Peer } from './peer';
 import { EventEmitter } from 'events';
 import { peerManager } from './peermanager';
+import { ObjectId } from './store';
 
 const TIMEOUT_DELAY = 10000; // 10 seconds
 const MAX_BUFFER_SIZE = 100 * 1024; // 100 kB
-
-export const networkEventEmitter = new EventEmitter();
 class Network {
   peers: Peer[] = [];
 
@@ -42,16 +41,15 @@ class Network {
         );
       }
     }
+  }
+  broadcastGetObject(objectid: ObjectId) {
+    logger.info(`Broadcasting getobject to all peers: ${objectid}`);
 
-    networkEventEmitter.on('search', objectid => {
-      logger.info(`Broadcasting getobject to all peers: ${objectid}`);
-
-      for (const peer of this.peers) {
-        if (peer.active) {
-          peer.sendGetObject(objectid);
-        }
+    for (const peer of this.peers) {
+      if (peer.active) {
+        peer.sendGetObject(objectid);
       }
-    });
+    }
   }
   broadcast(obj: object) {
     logger.info(`Broadcasting object to all peers: %o`, obj);
