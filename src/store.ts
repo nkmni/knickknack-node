@@ -49,8 +49,9 @@ export class ObjectStorage {
   }
   static async put(object: any) {
     logger.debug(`Storing object with id ${this.id(object)}: %o`, object);
+    const ret = await db.put(`object:${this.id(object)}`, object);
     storageEventEmitter.emit('put', this.id(object));
-    return await db.put(`object:${this.id(object)}`, object);
+    return ret;
   }
   static async validate(object: ObjectType) {
     if (!ObjectTxOrBlock.guard(object)) {
