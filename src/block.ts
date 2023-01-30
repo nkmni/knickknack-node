@@ -71,7 +71,7 @@ export class Block {
         if (!(await ObjectStorage.exists(txid))) {
           // txid not in database
 
-          // emit search to broadcast getobject to all peers
+          // emit 'search' to broadcast getobject to all peers
           networkEventEmitter.emit('search', txid);
 
           // wait 10 seconds before giving up on finding missing transaction
@@ -92,7 +92,6 @@ export class Block {
 
           // turn on callback on object
           storageEventEmitter.on('put', checkForTx);
-        } else {
         }
       }),
     );
