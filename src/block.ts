@@ -146,6 +146,7 @@ export class Block {
     }
   }
   async computeNewUtxoSet(): Promise<OutpointObjectType[]> {
+    // UTXO set after the genesis block is empty.
     if (this.previd === null) {
       return new Array<OutpointObjectType>();
     }
@@ -153,22 +154,28 @@ export class Block {
     const newUtxoSet: OutpointObjectType[] = JSON.parse(
       JSON.stringify(parentUtxoSet),
     );
+    /* For each transaction in the block: */
     for (const txid in this.txids) {
       const tx = await Transaction.byId(txid);
+      /* Check that each input of the transaction corresponds to an output that is present in the UTXO set. */
       for (const input of tx.inputs) {
         const outpoint = input.outpoint.toNetworkObject();
         const outpointIndex = parentUtxoSet.indexOf(outpoint);
         if (outpointIndex === -1) {
+          /* If the output is not present in the UTXO set, send back an INVALID_TX_OUTPOINT error. */
           throw new AnnotatedError(
             'INVALID_TX_OUTPOINT',
             `Block ${this.blockid} contains transaction ${txid} with input not present in UTXO set.`,
           );
         }
+        // Remove this input from the UTXO Set as 'spent'
         newUtxoSet.splice(outpointIndex, 1);
       }
+      /* Adding UTXOs that are created. Update the UTXO set accordingly. */
       for (let i = 0; i < tx.outputs.length; ++i) {
         newUtxoSet.push(new Outpoint(txid, i).toNetworkObject());
       }
+      /* c) Repeat steps a-b for the next transaction using the updated UTXO set. */
     }
     return newUtxoSet;
   }

@@ -235,9 +235,11 @@ export class Peer {
 
     await ObjectStorage.put(msg.object);
 
+    /* If object is a block, compute UTXO set and store in db. */
     if (BlockObject.guard(msg.object)) {
       try {
         const block = Block.fromNetworkObject(msg.object);
+        // ignore block if do not have previous block
         if (
           block.previd === null ||
           (await ObjectStorage.exists(block.previd))

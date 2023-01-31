@@ -64,6 +64,7 @@ export class ObjectStorage {
       );
     }
   }
+  /* New storage 'put' for UTXO sets */
   static async putUtxoSet(blockid: ObjectId, utxoSet: OutpointObjectType[]) {
     logger.debug(`Storing UTXO for block with id ${blockid}: %o`, utxoSet);
     const ret = await db.put(`utxo:${blockid}`, utxoSet);
