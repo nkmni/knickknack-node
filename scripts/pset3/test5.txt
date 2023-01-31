@@ -1,0 +1,2 @@
+{"agent":"Knickknack","type":"hello","version":"0.9.0"}
+{"type": "object", "object": {"type":"transaction","height":1,"outputs":[{"pubkey":"daa520a25ccde0adad74134f2be50e6b55b526b1a4de42d8032abf7649d14bfc","value":50000000000000}]}}
