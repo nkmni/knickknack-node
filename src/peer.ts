@@ -16,12 +16,14 @@ import {
   MempoolMessageType,
   GetChainTipMessageType,
   ChainTipMessageType,
+  BlockObject,
 } from './message';
 import { peerManager } from './peermanager';
 import { canonicalize } from 'json-canonicalize';
 import { db, ObjectStorage } from './store';
 import { network } from './network';
 import { ObjectId } from './store';
+import { Block } from './block';
 
 const VERSION = '0.9.0';
 const NAME = 'Knickknack (pset3)';
@@ -232,6 +234,22 @@ export class Peer {
     }
 
     await ObjectStorage.put(msg.object);
+
+    if (BlockObject.guard(msg.object)) {
+      try {
+        const block = Block.fromNetworkObject(msg.object);
+        if (
+          block.previd === null ||
+          (await ObjectStorage.exists(block.previd))
+        ) {
+          const newUtxoSet = await block.computeNewUtxoSet();
+          await ObjectStorage.putUtxoSet(block.blockid, newUtxoSet);
+        }
+      } catch (e: any) {
+        this.sendError(e);
+        return;
+      }
+    }
 
     // gossip
     network.broadcast({

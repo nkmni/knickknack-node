@@ -7,6 +7,7 @@ import {
   TransactionObject,
   ObjectType,
   ObjectTxOrBlock,
+  OutpointObjectType,
 } from './message';
 import { Transaction } from './transaction';
 import { logger } from './logger';
@@ -51,6 +52,22 @@ export class ObjectStorage {
     logger.debug(`Storing object with id ${this.id(object)}: %o`, object);
     const ret = await db.put(`object:${this.id(object)}`, object);
     storageEventEmitter.emit('put', this.id(object));
+    return ret;
+  }
+  static async getUtxoSet(blockid: ObjectId): Promise<OutpointObjectType[]> {
+    try {
+      return await db.get(`utxo:${blockid}`);
+    } catch {
+      throw new AnnotatedError(
+        'UNKNOWN_OBJECT',
+        `UTXO set for block ${blockid} not known locally`,
+      );
+    }
+  }
+  static async putUtxoSet(blockid: ObjectId, utxoSet: OutpointObjectType[]) {
+    logger.debug(`Storing UTXO for block with id ${blockid}: %o`, utxoSet);
+    const ret = await db.put(`utxo:${blockid}`, utxoSet);
+    storageEventEmitter.emit('put-utxo', utxoSet);
     return ret;
   }
   static async validate(object: ObjectType) {

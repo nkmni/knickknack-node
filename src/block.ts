@@ -3,11 +3,12 @@ import {
   AnnotatedError,
   BlockObjectType,
   CoinbaseTransactionObject,
+  OutpointObject,
+  OutpointObjectType,
   TransactionObjectType,
 } from './message';
 import { network } from './network';
-import { Transaction } from './transaction';
-import { resolve } from 'path';
+import { Outpoint, Transaction } from './transaction';
 
 export class Block {
   blockid: ObjectId;
@@ -143,6 +144,33 @@ export class Block {
         );
       }
     }
+  }
+  async computeNewUtxoSet(): Promise<OutpointObjectType[]> {
+    if (this.previd === null) {
+      return new Array<OutpointObjectType>();
+    }
+    const parentUtxoSet = await ObjectStorage.getUtxoSet(this.previd);
+    const newUtxoSet: OutpointObjectType[] = JSON.parse(
+      JSON.stringify(parentUtxoSet),
+    );
+    for (const txid in this.txids) {
+      const tx = await Transaction.byId(txid);
+      for (const input of tx.inputs) {
+        const outpoint = input.outpoint.toNetworkObject();
+        const outpointIndex = parentUtxoSet.indexOf(outpoint);
+        if (outpointIndex === -1) {
+          throw new AnnotatedError(
+            'INVALID_TX_OUTPOINT',
+            `Block ${this.blockid} contains transaction ${txid} with input not present in UTXO set.`,
+          );
+        }
+        newUtxoSet.splice(outpointIndex, 1);
+      }
+      for (let i = 0; i < tx.outputs.length; ++i) {
+        newUtxoSet.push(new Outpoint(txid, i).toNetworkObject());
+      }
+    }
+    return newUtxoSet;
   }
   toNetworkObject(): BlockObjectType {
     return {
