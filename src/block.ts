@@ -95,7 +95,7 @@ export class Block {
             const checkForTx = (objectid: string) => {
               if (txid === objectid) {
                 clearTimeout(timeout);
-                // storageEventEmitter.off('put', checkForTx);
+                storageEventEmitter.off('put', checkForTx);
                 resolve();
               }
             };
@@ -108,7 +108,7 @@ export class Block {
     }
 
     await Promise.all(txSearchPromises);
-    storageEventEmitter.removeAllListeners('put');
+    // storageEventEmitter.removeAllListeners('put');
 
     // await Promise.all(
     //   this.txids.map(async (txid, i): Promise<Promise<void>> => {
