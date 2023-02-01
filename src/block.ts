@@ -95,13 +95,12 @@ export class Block {
             const checkForTx = (objectid: string) => {
               if (txid === objectid) {
                 clearTimeout(timeout);
-                storageEventEmitter.off('put', checkForTx);
                 resolve();
               }
             };
 
             // turn on callback on object
-            storageEventEmitter.on('put', checkForTx);
+            storageEventEmitter.once('put', checkForTx);
           }),
         );
       }
