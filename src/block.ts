@@ -197,7 +197,15 @@ export class Block {
     );
     /* For each transaction in the block: */
     for (const txid in this.txids) {
-      const tx = await Transaction.byId(txid);
+      let tx;
+      try {
+        tx = await Transaction.byId(txid);
+      } catch (e: any) {
+        throw new AnnotatedError(
+          'INVALID_TX_OUTPOINT',
+          `Block ${this.blockid} contains invalid transaction ${txid}.`,
+        );
+      }
       /* Check that each input of the transaction corresponds to an output that is present in the UTXO set. */
       for (const input of tx.inputs) {
         const outpoint = input.outpoint.toNetworkObject();
