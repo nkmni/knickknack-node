@@ -64,20 +64,23 @@ export class Block {
         `Block ${this.blockid} has invalid target: ${this.T}`,
       );
     }
+
     if (this.blockid >= this.T) {
       throw new AnnotatedError(
         'INVALID_BLOCK_POW',
         `Block ${this.blockid} has invalid Proof of Work`,
       );
     }
-    await Promise.all(
-      this.txids.map(async (txid, i) => {
-        if (!(await ObjectStorage.exists(txid))) {
-          // txid not in database
-          // broadcast getobject to all peers
-          network.broadcastGetObject(txid);
 
-          return new Promise<void>((resolve, reject) => {
+    let txSearchPromises = new Array<Promise<void>>();
+
+    for (const txid of this.txids) {
+      if (!(await ObjectStorage.exists(txid))) {
+        // txid not in database
+        // broadcast getobject to all peers
+        network.broadcastGetObject(txid);
+        txSearchPromises.push(
+          new Promise<void>((resolve, reject) => {
             // wait 10 seconds before giving up on finding missing transaction
             const timeout = setTimeout(() => {
               reject(
@@ -92,17 +95,55 @@ export class Block {
             const checkForTx = (objectid: string) => {
               if (txid === objectid) {
                 clearTimeout(timeout);
-                storageEventEmitter.off('put', checkForTx);
+                // storageEventEmitter.off('put', checkForTx);
                 resolve();
               }
             };
 
             // turn on callback on object
             storageEventEmitter.on('put', checkForTx);
-          });
-        }
-      }),
-    );
+          }),
+        );
+      }
+    }
+
+    await Promise.all(txSearchPromises);
+    storageEventEmitter.removeAllListeners('put');
+
+    // await Promise.all(
+    //   this.txids.map(async (txid, i): Promise<Promise<void>> => {
+    //     if (!(await ObjectStorage.exists(txid))) {
+    //       // txid not in database
+    //       // broadcast getobject to all peers
+    //       network.broadcastGetObject(txid);
+
+    //       return new Promise<void>((resolve, reject) => {
+    //         // wait 10 seconds before giving up on finding missing transaction
+    //         const timeout = setTimeout(() => {
+    //           reject(
+    //             new AnnotatedError(
+    //               'UNFINDABLE_OBJECT',
+    //               `Block ${this.blockid} contains transaction ${txid} that could not be found.`,
+    //             ),
+    //           );
+    //         }, 10000);
+
+    //         // callback for when new object shows up in storage
+    //         const checkForTx = (objectid: string) => {
+    //           if (txid === objectid) {
+    //             clearTimeout(timeout);
+    //             storageEventEmitter.off('put', checkForTx);
+    //             resolve();
+    //           }
+    //         };
+
+    //         // turn on callback on object
+    //         storageEventEmitter.on('put', checkForTx);
+    //       });
+    //     }
+    //   }),
+    // );
+
     // check that there are no coinbase txs at non-zero indices
     // and that no other tx in block spends the coinbase tx if present.
     // sum fees while you're at it.
