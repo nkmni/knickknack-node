@@ -9,6 +9,7 @@ import {
 } from './message';
 import { network } from './network';
 import { Outpoint, Transaction } from './transaction';
+import { logger } from './logger';
 
 export class Block {
   blockid: ObjectId;
@@ -95,7 +96,7 @@ export class Block {
             const checkForTx = (objectid: string) => {
               if (txid === objectid) {
                 clearTimeout(timeout);
-                // storageEventEmitter.off('put', checkForTx);
+                storageEventEmitter.off('put', checkForTx);
                 resolve();
               }
             };
@@ -108,7 +109,7 @@ export class Block {
     }
 
     await Promise.all(txSearchPromises);
-    storageEventEmitter.removeAllListeners('put');
+    // storageEventEmitter.removeAllListeners('put');
 
     // await Promise.all(
     //   this.txids.map(async (txid, i): Promise<Promise<void>> => {
@@ -196,7 +197,7 @@ export class Block {
       JSON.stringify(parentUtxoSet),
     );
     /* For each transaction in the block: */
-    for (const txid in this.txids) {
+    for (const txid of this.txids) {
       const tx = await Transaction.byId(txid);
       /* Check that each input of the transaction corresponds to an output that is present in the UTXO set. */
       for (const input of tx.inputs) {
