@@ -9,6 +9,7 @@ import {
 } from './message';
 import { network } from './network';
 import { Outpoint, Transaction } from './transaction';
+import { logger } from './logger';
 
 export class Block {
   blockid: ObjectId;
@@ -196,16 +197,8 @@ export class Block {
       JSON.stringify(parentUtxoSet),
     );
     /* For each transaction in the block: */
-    for (const txid in this.txids) {
-      let tx;
-      try {
-        tx = await Transaction.byId(txid);
-      } catch (e: any) {
-        throw new AnnotatedError(
-          'INVALID_TX_OUTPOINT',
-          `Block ${this.blockid} contains invalid transaction ${txid}.`,
-        );
-      }
+    for (const txid of this.txids) {
+      const tx = await Transaction.byId(txid);
       /* Check that each input of the transaction corresponds to an output that is present in the UTXO set. */
       for (const input of tx.inputs) {
         const outpoint = input.outpoint.toNetworkObject();
