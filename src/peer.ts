@@ -12,6 +12,8 @@ import {
   ObjectMessage,
   ErrorMessage,
   MessageType,
+  GetChainTipMessage,
+  ChainTipMessage,
   HelloMessageType,
   PeersMessageType,
   GetPeersMessageType,
@@ -19,6 +21,8 @@ import {
   GetObjectMessageType,
   ObjectMessageType,
   ErrorMessageType,
+  GetChainTipMessageType,
+  ChainTipMessageType,
   AnnotatedError,
 } from './message';
 import { peerManager } from './peermanager';
@@ -89,6 +93,17 @@ export class Peer {
       );
     }
   }
+  async sendGetChainTip(){
+    this.sendMessage({
+      type: 'getchaintip',
+    });
+  }
+  async sendChainTip(objid: ObjectId) { // this should be a blockid
+    this.sendMessage({
+      type: 'chaintip',
+      blockid: objid,
+    });
+  }
   sendMessage(obj: object) {
     const message: string = canonicalize(obj);
 
@@ -109,6 +124,7 @@ export class Peer {
     this.active = true;
     await this.sendHello();
     await this.sendGetPeers();
+    await this.sendGetChainTip();
   }
   async onTimeout() {
     return await this.fatalError(
@@ -170,6 +186,8 @@ export class Peer {
       this.onMessageGetObject.bind(this),
       this.onMessageObject.bind(this),
       this.onMessageError.bind(this),
+      this.onMessageGetChainTip.bind(this),
+      this.onMessageChainTip.bind(this),
     )(msg);
   }
   async onMessageHello(msg: HelloMessageType) {
@@ -263,6 +281,20 @@ export class Peer {
   }
   async onMessageError(msg: ErrorMessageType) {
     this.warn(`Peer reported error: ${msg.name}`);
+  }
+  async onMessageGetChainTip(msg: GetChainTipMessageType) {
+    this.info(`Remote party is requesting current blockchain tip. Sharing.`);
+    // get blockid of current tip
+    // await this.sendChainTip(blockid of current tip);
+  }
+  async onMessageChainTip(msg: ChainTipMessageType) {
+    this.info(`Peer claims knowledge of block of current tip: ${msg.blockid}`);
+    if (!(await db.exists(msg.blockid))) {
+      this.info(`Object ${msg.blockid} discovered`);
+      await this.sendGetObject(msg.blockid);
+      // TODO NEIL: Call Neil's Helper Function from Part 1 to recursively download/validate each block in chain
+      // TODO LAUREN: Update longest chain if required
+    }
   }
   log(level: string, message: string, ...args: any[]) {
     logger.log(
