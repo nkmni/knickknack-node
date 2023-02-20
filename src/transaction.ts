@@ -1,14 +1,17 @@
-import { ObjectId, ObjectStorage } from './store';
+import { ObjectId, objectManager } from './object';
 import {
-  AnnotatedError,
   TransactionInputObjectType,
   TransactionObjectType,
   TransactionOutputObjectType,
   OutpointObjectType,
   SpendingTransactionObject,
+  AnnotatedError,
 } from './message';
-import { PublicKey, Signature, ver } from './crypto/signature';
+import { PublicKey, Signature } from './crypto/signature';
 import { canonicalize } from 'json-canonicalize';
+import { ver } from './crypto/signature';
+import { logger } from './logger';
+import { Block } from './block';
 
 export class Output {
   pubkey: PublicKey;
@@ -41,7 +44,7 @@ export class Outpoint {
     this.index = index;
   }
   async resolve(): Promise<Output> {
-    const refTxMsg = await ObjectStorage.get(this.txid);
+    const refTxMsg = await objectManager.get(this.txid);
     const refTx = Transaction.fromNetworkObject(refTxMsg);
 
     if (this.index >= refTx.outputs.length) {
@@ -57,6 +60,9 @@ export class Outpoint {
       txid: this.txid,
       index: this.index,
     };
+  }
+  toString() {
+    return `<outpoint: (${this.txid}, ${this.index})>`;
   }
 }
 
@@ -90,6 +96,7 @@ export class Transaction {
   inputs: Input[] = [];
   outputs: Output[] = [];
   height: number | null = null;
+  fees: number | undefined;
 
   static inputsFromNetworkObject(inputMsgs: TransactionInputObjectType[]) {
     return inputMsgs.map(Input.fromNetworkObject);
@@ -108,10 +115,10 @@ export class Transaction {
     }
     const outputs = Transaction.outputsFromNetworkObject(txObj.outputs);
 
-    return new Transaction(ObjectStorage.id(txObj), inputs, outputs, height);
+    return new Transaction(objectManager.id(txObj), inputs, outputs, height);
   }
   static async byId(txid: ObjectId): Promise<Transaction> {
-    return this.fromNetworkObject(await ObjectStorage.get(txid));
+    return this.fromNetworkObject(await objectManager.get(txid));
   }
   constructor(
     txid: ObjectId,
@@ -124,33 +131,53 @@ export class Transaction {
     this.outputs = outputs;
     this.height = height;
   }
-  async calculateFee() {
-    const inputValues = await Promise.all(
-      this.inputs.map(async input => {
-        const prevOutput = await input.outpoint.resolve();
-        return prevOutput.value;
-      }),
-    );
-    let sumInputs = 0;
-    let sumOutputs = 0;
-    for (const inputValue of inputValues) {
-      sumInputs += inputValue;
-    }
-    for (const output of this.outputs) {
-      sumOutputs += output.value;
-    }
-    return sumInputs - sumOutputs;
+  isCoinbase() {
+    return this.inputs.length === 0;
   }
-  async validate() {
+  async validate(idx?: number, block?: Block) {
+    logger.debug(`Validating transaction ${this.txid}`);
     const unsignedTxStr = canonicalize(this.toNetworkObject(false));
 
-    if (this.inputs.length == 0) {
-      // assume all coinbases are valid for now
+    if (this.isCoinbase()) {
+      if (this.outputs.length > 1) {
+        throw new AnnotatedError(
+          'INVALID_FORMAT',
+          `Invalid coinbase transaction ${this.txid}. Coinbase must have only a single output.`,
+        );
+      }
+      if (block !== undefined && idx !== undefined) {
+        // validating coinbase transaction in the context of a block
+        if (idx > 0) {
+          throw new AnnotatedError(
+            'INVALID_BLOCK_COINBASE',
+            `Coinbase transaction ${this.txid} must be the first in block.`,
+          );
+        }
+      }
+      this.fees = 0;
       return;
+    }
+
+    let blockCoinbase: Transaction;
+
+    if (block !== undefined) {
+      try {
+        blockCoinbase = await block.getCoinbase();
+      } catch (e) {}
     }
 
     const inputValues = await Promise.all(
       this.inputs.map(async (input, i) => {
+        if (
+          blockCoinbase !== undefined &&
+          input.outpoint.txid === blockCoinbase.txid
+        ) {
+          throw new AnnotatedError(
+            'INVALID_TX_OUTPOINT',
+            `Transaction ${this.txid} is spending immature coinbase`,
+          );
+        }
+
         const prevOutput = await input.outpoint.resolve();
 
         if (input.sig === null) {
@@ -172,26 +199,35 @@ export class Transaction {
     let sumInputs = 0;
     let sumOutputs = 0;
 
+    logger.debug(
+      `Checking the law of conservation for transaction ${this.txid}`,
+    );
     for (const inputValue of inputValues) {
       sumInputs += inputValue;
     }
+    logger.debug(`Sum of inputs is ${sumInputs}`);
     for (const output of this.outputs) {
       sumOutputs += output.value;
     }
+    logger.debug(`Sum of outputs is ${sumOutputs}`);
     if (sumInputs < sumOutputs) {
       throw new AnnotatedError(
         'INVALID_TX_CONSERVATION',
         `Transaction ${this.txid} does not respect the Law of Conservation. Inputs summed to ${sumInputs}, while outputs summed to ${sumOutputs}.`,
       );
     }
+    this.fees = sumInputs - sumOutputs;
+    logger.debug(`Transaction ${this.txid} pays fees ${this.fees}`);
+    logger.debug(`Transaction ${this.txid} is valid`);
   }
   inputsUnsigned() {
     return this.inputs.map(input => input.toUnsigned().toNetworkObject());
   }
   toNetworkObject(signed: boolean = true): TransactionObjectType {
-    let outputObjs = this.outputs.map(output => output.toNetworkObject());
+    const outputObjs = this.outputs.map(output => output.toNetworkObject());
 
     if (this.height !== null) {
+      // coinbase
       return {
         type: 'transaction',
         outputs: outputObjs,
@@ -210,5 +246,8 @@ export class Transaction {
       inputs: this.inputsUnsigned(),
       outputs: outputObjs,
     };
+  }
+  toString() {
+    return `<Transaction ${this.txid}>`;
   }
 }

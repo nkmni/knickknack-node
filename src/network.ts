@@ -3,10 +3,10 @@ import { logger } from './logger';
 import { Peer } from './peer';
 import { EventEmitter } from 'events';
 import { peerManager } from './peermanager';
-import { ObjectId } from './store';
 
 const TIMEOUT_DELAY = 10000; // 10 seconds
 const MAX_BUFFER_SIZE = 100 * 1024; // 100 kB
+
 class Network {
   peers: Peer[] = [];
 
@@ -20,6 +20,7 @@ class Network {
           socket,
           `${socket.remoteAddress}:${socket.remotePort}`,
         ),
+        `${socket.remoteAddress}:${socket.remotePort}`,
       );
       this.peers.push(peer);
       peer.onConnect();
@@ -33,21 +34,12 @@ class Network {
     for (const peerAddr of peerManager.knownPeers) {
       logger.info(`Attempting connection to known peer ${peerAddr}`);
       try {
-        const peer = new Peer(MessageSocket.createClient(peerAddr));
+        const peer = new Peer(MessageSocket.createClient(peerAddr), peerAddr);
         this.peers.push(peer);
       } catch (e: any) {
         logger.warn(
           `Failed to create connection to peer ${peerAddr}: ${e.message}`,
         );
-      }
-    }
-  }
-  broadcastGetObject(objectid: ObjectId) {
-    logger.info(`Broadcasting getobject to all peers: ${objectid}`);
-
-    for (const peer of this.peers) {
-      if (peer.active) {
-        peer.sendGetObject(objectid);
       }
     }
   }

@@ -2,9 +2,16 @@ import { logger } from './logger';
 import { MessageSocket } from './network';
 import semver from 'semver';
 import {
-  AnnotatedError,
+  Messages,
   Message,
   HelloMessage,
+  PeersMessage,
+  GetPeersMessage,
+  IHaveObjectMessage,
+  GetObjectMessage,
+  ObjectMessage,
+  ErrorMessage,
+  MessageType,
   HelloMessageType,
   PeersMessageType,
   GetPeersMessageType,
@@ -12,26 +19,27 @@ import {
   GetObjectMessageType,
   ObjectMessageType,
   ErrorMessageType,
-  GetMempoolMessageType,
-  MempoolMessageType,
-  GetChainTipMessageType,
-  ChainTipMessageType,
-  BlockObject,
+  AnnotatedError,
 } from './message';
 import { peerManager } from './peermanager';
 import { canonicalize } from 'json-canonicalize';
-import { db, ObjectStorage } from './store';
+import { db, objectManager } from './object';
 import { network } from './network';
-import { ObjectId } from './store';
+import { ObjectId } from './object';
 import { Block } from './block';
+import { Transaction } from './transaction';
 
 const VERSION = '0.9.0';
-const NAME = 'Knickknack (pset3)';
+const NAME = 'Malibu (pset3)';
+
+// Number of peers that each peer is allowed to report to us
+const MAX_PEERS_PER_PEER = 30;
 
 export class Peer {
   active: boolean = false;
   socket: MessageSocket;
   handshakeCompleted: boolean = false;
+  peerAddr: string;
 
   async sendHello() {
     this.sendMessage({
@@ -54,7 +62,7 @@ export class Peer {
   async sendIHaveObject(obj: any) {
     this.sendMessage({
       type: 'ihaveobject',
-      objectid: ObjectStorage.id(obj),
+      objectid: objectManager.id(obj),
     });
   }
   async sendObject(obj: any) {
@@ -90,8 +98,12 @@ export class Peer {
   async fatalError(err: AnnotatedError) {
     await this.sendError(err);
     this.warn(`Peer error: ${err}`);
+    this.fail();
+  }
+  async fail() {
     this.active = false;
     this.socket.end();
+    peerManager.peerFailed(this.peerAddr);
   }
   async onConnect() {
     this.active = true;
@@ -158,10 +170,6 @@ export class Peer {
       this.onMessageGetObject.bind(this),
       this.onMessageObject.bind(this),
       this.onMessageError.bind(this),
-      this.onMessageGetMempool.bind(this),
-      this.onMessageMempool.bind(this),
-      this.onMessageGetChainTip.bind(this),
-      this.onMessageChainTip.bind(this),
     )(msg);
   }
   async onMessageHello(msg: HelloMessageType) {
@@ -179,10 +187,15 @@ export class Peer {
     this.handshakeCompleted = true;
   }
   async onMessagePeers(msg: PeersMessageType) {
-    for (const peer of msg.peers) {
+    for (const peer of msg.peers.slice(0, MAX_PEERS_PER_PEER)) {
       this.info(`Remote party reports knowledge of peer ${peer}`);
 
       peerManager.peerDiscovered(peer);
+    }
+    if (msg.peers.length > MAX_PEERS_PER_PEER) {
+      this.info(
+        `Remote party reported ${msg.peers.length} peers, but we processed only ${MAX_PEERS_PER_PEER} of them.`,
+      );
     }
   }
   async onMessageGetPeers(msg: GetPeersMessageType) {
@@ -202,8 +215,8 @@ export class Peer {
 
     let obj;
     try {
-      obj = await ObjectStorage.get(msg.objectid);
-    } catch {
+      obj = await objectManager.get(msg.objectid);
+    } catch (e) {
       this.warn(`We don't have the requested object with id: ${msg.objectid}`);
       this.sendError(
         new AnnotatedError(
@@ -216,56 +229,41 @@ export class Peer {
     await this.sendObject(obj);
   }
   async onMessageObject(msg: ObjectMessageType) {
-    const objectid: ObjectId = ObjectStorage.id(msg.object);
+    const objectid: ObjectId = objectManager.id(msg.object);
+    let known: boolean = false;
 
     this.info(`Received object with id ${objectid}: %o`, msg.object);
 
-    if (await ObjectStorage.exists(objectid)) {
-      this.debug(`Object with id ${objectid} is already known`);
-      return;
-    }
-    this.info(`New object with id ${objectid} downloaded: %o`, msg.object);
+    known = await objectManager.exists(objectid);
 
+    if (known) {
+      this.debug(`Object with id ${objectid} is already known`);
+    } else {
+      this.info(`New object with id ${objectid} downloaded: %o`, msg.object);
+
+      // store object even if it is invalid
+      await objectManager.put(msg.object);
+    }
+
+    let instance: Block | Transaction;
     try {
-      await ObjectStorage.validate(msg.object);
+      instance = await objectManager.validate(msg.object, this);
     } catch (e: any) {
       this.sendError(e);
       return;
     }
 
-    await ObjectStorage.put(msg.object);
-
-    /* If object is a block, compute UTXO set and store in db. */
-    if (BlockObject.guard(msg.object)) {
-      try {
-        const block = Block.fromNetworkObject(msg.object);
-        // ignore block if do not have previous block
-        if (
-          block.previd === null ||
-          (await ObjectStorage.exists(block.previd))
-        ) {
-          const newUtxoSet = await block.computeNewUtxoSet();
-          await ObjectStorage.putUtxoSet(block.blockid, newUtxoSet);
-        }
-      } catch (e: any) {
-        this.sendError(e);
-        return;
-      }
+    if (!known) {
+      // gossip
+      network.broadcast({
+        type: 'ihaveobject',
+        objectid,
+      });
     }
-
-    // gossip
-    network.broadcast({
-      type: 'ihaveobject',
-      objectid: objectid,
-    });
   }
   async onMessageError(msg: ErrorMessageType) {
     this.warn(`Peer reported error: ${msg.name}`);
   }
-  async onMessageGetMempool(msg: GetMempoolMessageType) {}
-  async onMessageMempool(msg: MempoolMessageType) {}
-  async onMessageGetChainTip(msg: GetChainTipMessageType) {}
-  async onMessageChainTip(msg: ChainTipMessageType) {}
   log(level: string, message: string, ...args: any[]) {
     logger.log(
       level,
@@ -282,12 +280,14 @@ export class Peer {
   debug(message: string, ...args: any[]) {
     this.log('debug', message, ...args);
   }
-  constructor(socket: MessageSocket) {
+  constructor(socket: MessageSocket, peerAddr: string) {
     this.socket = socket;
+    this.peerAddr = peerAddr;
 
     socket.netSocket.on('connect', this.onConnect.bind(this));
     socket.netSocket.on('error', err => {
       this.warn(`Socket error: ${err}`);
+      this.fail();
     });
     socket.on('message', this.onMessage.bind(this));
     socket.on('timeout', this.onTimeout.bind(this));

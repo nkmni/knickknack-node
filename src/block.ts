@@ -1,236 +1,316 @@
-import { ObjectId, ObjectStorage, storageEventEmitter } from './store';
 import {
-  AnnotatedError,
+  BlockObject,
   BlockObjectType,
-  CoinbaseTransactionObject,
-  OutpointObject,
-  OutpointObjectType,
-  TransactionObjectType,
+  TransactionObject,
+  ObjectType,
+  AnnotatedError,
 } from './message';
-import { network } from './network';
-import { Outpoint, Transaction } from './transaction';
+import { hash } from './crypto/hash';
+import { canonicalize } from 'json-canonicalize';
+import { Peer } from './peer';
+import { objectManager, ObjectId, db } from './object';
+import util from 'util';
+import { UTXOSet } from './utxo';
 import { logger } from './logger';
+import { Transaction } from './transaction';
+
+const TARGET =
+  '00000000abc00000000000000000000000000000000000000000000000000000';
+const GENESIS: BlockObjectType = {
+  T: TARGET,
+  created: 1671062400,
+  miner: 'Marabu',
+  nonce: '000000000000000000000000000000000000000000000000000000021bea03ed',
+  note: 'The New York Times 2022-12-13: Scientists Achieve Nuclear Fusion Breakthrough With Blast of 192 Lasers',
+  previd: null,
+  txids: [],
+  type: 'block',
+};
+const BU = 10 ** 12;
+const BLOCK_REWARD = 50 * BU;
 
 export class Block {
-  blockid: ObjectId;
-  txids: string[];
-  nonce: string;
   previd: string | null;
-  created: number;
+  txids: ObjectId[];
+  nonce: string;
   T: string;
-  miner: string;
-  note: string;
+  created: number;
+  miner: string | undefined;
+  note: string | undefined;
+  studentids: string[] | undefined;
+  blockid: string;
+  fees: number | undefined;
 
-  static fromNetworkObject(block: BlockObjectType): Block {
+  public static async fromNetworkObject(
+    object: BlockObjectType,
+  ): Promise<Block> {
     return new Block(
-      ObjectStorage.id(block),
-      block.txids,
-      block.nonce,
-      block.previd,
-      block.created,
-      block.T,
-      block.miner,
-      block.note,
+      object.previd,
+      object.txids,
+      object.nonce,
+      object.T,
+      object.created,
+      object.miner,
+      object.note,
+      object.studentids,
     );
-  }
-  static async byId(blockid: ObjectId): Promise<Block> {
-    return this.fromNetworkObject(await ObjectStorage.get(blockid));
   }
   constructor(
-    blockid: ObjectId,
+    previd: string | null,
     txids: string[],
     nonce: string,
-    previd: string | null,
-    created: number,
     T: string,
-    miner: string,
-    note: string,
+    created: number,
+    miner: string | undefined,
+    note: string | undefined,
+    studentids: string[] | undefined,
   ) {
-    this.blockid = blockid;
+    this.previd = previd;
     this.txids = txids;
     this.nonce = nonce;
-    this.previd = previd;
-    this.created = created;
     this.T = T;
+    this.created = created;
     this.miner = miner;
     this.note = note;
+    this.studentids = studentids;
+    this.blockid = hash(canonicalize(this.toNetworkObject()));
   }
-  async validate() {
-    if (
-      this.T !==
-      '00000000abc00000000000000000000000000000000000000000000000000000'
-    ) {
-      throw new AnnotatedError(
-        'INVALID_FORMAT',
-        `Block ${this.blockid} has invalid target: ${this.T}`,
+  async loadStateAfter(): Promise<UTXOSet | undefined> {
+    try {
+      return new UTXOSet(
+        new Set<string>(await db.get(`blockutxo:${this.blockid}`)),
       );
-    }
-
-    if (this.blockid >= this.T) {
-      throw new AnnotatedError(
-        'INVALID_BLOCK_POW',
-        `Block ${this.blockid} has invalid Proof of Work`,
-      );
-    }
-
-    let txSearchPromises = new Array<Promise<void>>();
-
-    for (const txid of this.txids) {
-      if (!(await ObjectStorage.exists(txid))) {
-        // txid not in database
-        // broadcast getobject to all peers
-        network.broadcastGetObject(txid);
-        txSearchPromises.push(
-          new Promise<void>((resolve, reject) => {
-            // wait 10 seconds before giving up on finding missing transaction
-            const timeout = setTimeout(() => {
-              reject(
-                new AnnotatedError(
-                  'UNFINDABLE_OBJECT',
-                  `Block ${this.blockid} contains transaction ${txid} that could not be found.`,
-                ),
-              );
-            }, 10000);
-
-            // callback for when new object shows up in storage
-            const checkForTx = (objectid: string) => {
-              if (txid === objectid) {
-                clearTimeout(timeout);
-                storageEventEmitter.off('put', checkForTx);
-                resolve();
-              }
-            };
-
-            // turn on callback on object
-            storageEventEmitter.on('put', checkForTx);
-          }),
-        );
-      }
-    }
-
-    await Promise.all(txSearchPromises);
-    // storageEventEmitter.removeAllListeners('put');
-
-    // await Promise.all(
-    //   this.txids.map(async (txid, i): Promise<Promise<void>> => {
-    //     if (!(await ObjectStorage.exists(txid))) {
-    //       // txid not in database
-    //       // broadcast getobject to all peers
-    //       network.broadcastGetObject(txid);
-
-    //       return new Promise<void>((resolve, reject) => {
-    //         // wait 10 seconds before giving up on finding missing transaction
-    //         const timeout = setTimeout(() => {
-    //           reject(
-    //             new AnnotatedError(
-    //               'UNFINDABLE_OBJECT',
-    //               `Block ${this.blockid} contains transaction ${txid} that could not be found.`,
-    //             ),
-    //           );
-    //         }, 10000);
-
-    //         // callback for when new object shows up in storage
-    //         const checkForTx = (objectid: string) => {
-    //           if (txid === objectid) {
-    //             clearTimeout(timeout);
-    //             storageEventEmitter.off('put', checkForTx);
-    //             resolve();
-    //           }
-    //         };
-
-    //         // turn on callback on object
-    //         storageEventEmitter.on('put', checkForTx);
-    //       });
-    //     }
-    //   }),
-    // );
-
-    // check that there are no coinbase txs at non-zero indices
-    // and that no other tx in block spends the coinbase tx if present.
-    // sum fees while you're at it.
-    if (this.txids.length > 0) {
-      const firstTxid = this.txids[0];
-      const firstTxObj = await ObjectStorage.get(firstTxid);
-      const firstTxIsCoinbase = CoinbaseTransactionObject.guard(firstTxObj);
-      let sumFees = 0;
-      for (let i = 1; i < this.txids.length; ++i) {
-        const txid = this.txids[i];
-        const txObj: TransactionObjectType = await ObjectStorage.get(txid);
-        if (CoinbaseTransactionObject.guard(txObj)) {
-          throw new AnnotatedError(
-            'INVALID_BLOCK_COINBASE',
-            `Block ${this.blockid} contains coinbase transaction ${txid} at a non-zero index.`,
-          );
-        }
-        const tx = Transaction.fromNetworkObject(txObj);
-        sumFees += await tx.calculateFee();
-        if (firstTxIsCoinbase) {
-          for (const input of txObj.inputs) {
-            if (input.outpoint.txid === firstTxid) {
-              throw new AnnotatedError(
-                'INVALID_TX_OUTPOINT',
-                `Block ${this.blockid} contains transaction ${txid} that spends coinbase transaction ${firstTxid} in same block.`,
-              );
-            }
-          }
-        }
-      }
-      // validate coinbase transaction if present
-      if (
-        firstTxIsCoinbase &&
-        firstTxObj.outputs[0].value > 50 * 10 ** 12 + sumFees
-      ) {
-        throw new AnnotatedError(
-          'INVALID_BLOCK_COINBASE',
-          `Block ${this.blockid} contains coinbase transaction ${firstTxid} with output value greater than block reward plus fees.`,
-        );
-      }
+    } catch (e) {
+      return;
     }
   }
-  async computeNewUtxoSet(): Promise<OutpointObjectType[]> {
-    // UTXO set after the genesis block is empty.
-    if (this.previd === null) {
-      return new Array<OutpointObjectType>();
+  async getCoinbase(): Promise<Transaction> {
+    if (this.txids.length === 0) {
+      throw new Error('The block has no coinbase transaction');
     }
-    const parentUtxoSet = await ObjectStorage.getUtxoSet(this.previd);
-    const newUtxoSet: OutpointObjectType[] = JSON.parse(
-      JSON.stringify(parentUtxoSet),
-    );
-    /* For each transaction in the block: */
-    for (const txid of this.txids) {
-      const tx = await Transaction.byId(txid);
-      /* Check that each input of the transaction corresponds to an output that is present in the UTXO set. */
-      for (const input of tx.inputs) {
-        const outpoint = input.outpoint.toNetworkObject();
-        const outpointIndex = parentUtxoSet.indexOf(outpoint);
-        if (outpointIndex === -1) {
-          /* If the output is not present in the UTXO set, send back an INVALID_TX_OUTPOINT error. */
-          throw new AnnotatedError(
-            'INVALID_TX_OUTPOINT',
-            `Block ${this.blockid} contains transaction ${txid} with input not present in UTXO set.`,
-          );
-        }
-        // Remove this input from the UTXO Set as 'spent'
-        newUtxoSet.splice(outpointIndex, 1);
-      }
-      /* Adding UTXOs that are created. Update the UTXO set accordingly. */
-      for (let i = 0; i < tx.outputs.length; ++i) {
-        newUtxoSet.push(new Outpoint(txid, i).toNetworkObject());
-      }
-      /* c) Repeat steps a-b for the next transaction using the updated UTXO set. */
+    const txid = this.txids[0];
+    logger.debug(`Checking whether ${txid} is the coinbase`);
+    const obj = await objectManager.get(txid);
+
+    if (!TransactionObject.guard(obj)) {
+      throw new Error('The block contains non-transaction txids');
     }
-    return newUtxoSet;
+
+    const tx: Transaction = Transaction.fromNetworkObject(obj);
+
+    if (tx.isCoinbase()) {
+      return tx;
+    }
+    throw new Error('The block has no coinbase transaction');
   }
-  toNetworkObject(): BlockObjectType {
-    return {
+  toNetworkObject() {
+    const netObj: BlockObjectType = {
       type: 'block',
+      previd: this.previd,
       txids: this.txids,
       nonce: this.nonce,
-      previd: this.previd,
-      created: this.created,
       T: this.T,
+      created: this.created,
       miner: this.miner,
-      note: this.note,
     };
+
+    if (this.note !== undefined) {
+      netObj.note = this.note;
+    }
+    if (this.studentids !== undefined) {
+      netObj.studentids = this.studentids;
+    }
+    return netObj;
+  }
+  hasPoW(): boolean {
+    return BigInt(`0x${this.blockid}`) <= BigInt(`0x${TARGET}`);
+  }
+  isGenesis(): boolean {
+    return this.previd === null;
+  }
+  async getTxs(peer?: Peer): Promise<Transaction[]> {
+    const txPromises: Promise<ObjectType>[] = [];
+    let maybeTransactions: ObjectType[] = [];
+    const txs: Transaction[] = [];
+
+    for (const txid of this.txids) {
+      if (peer === undefined) {
+        txPromises.push(objectManager.get(txid));
+      } else {
+        txPromises.push(objectManager.retrieve(txid, peer));
+      }
+    }
+    try {
+      maybeTransactions = await Promise.all(txPromises);
+    } catch (e) {
+      throw new AnnotatedError(
+        'UNFINDABLE_OBJECT',
+        `Retrieval of transactions of block ${this.blockid} failed; rejecting block`,
+      );
+    }
+    logger.debug(
+      `We have all ${this.txids.length} transactions of block ${this.blockid}`,
+    );
+    for (const maybeTx of maybeTransactions) {
+      if (!TransactionObject.guard(maybeTx)) {
+        throw new AnnotatedError(
+          'UNFINDABLE_OBJECT',
+          `Block reports a transaction with id ${objectManager.id(
+            maybeTx,
+          )}, but this is not a transaction.`,
+        );
+      }
+      const tx = Transaction.fromNetworkObject(maybeTx);
+      txs.push(tx);
+    }
+
+    return txs;
+  }
+  async validateTx(peer: Peer, stateBefore: UTXOSet) {
+    logger.debug(
+      `Validating ${this.txids.length} transactions of block ${this.blockid}`,
+    );
+
+    const stateAfter = stateBefore.copy();
+
+    const txs = await this.getTxs(peer);
+
+    for (let idx = 0; idx < txs.length; idx++) {
+      await txs[idx].validate(idx, this);
+    }
+
+    await stateAfter.applyMultiple(txs, this);
+    logger.debug(`UTXO state of block ${this.blockid} calculated`);
+
+    let fees = 0;
+    for (const tx of txs) {
+      if (tx.fees === undefined) {
+        throw new AnnotatedError(
+          'INTERNAL_ERROR',
+          `Transaction fees not calculated`,
+        );
+      }
+      fees += tx.fees;
+    }
+    this.fees = fees;
+
+    let coinbase;
+
+    try {
+      coinbase = await this.getCoinbase();
+    } catch (e) {}
+
+    if (coinbase !== undefined) {
+      if (coinbase.outputs[0].value > BLOCK_REWARD + fees) {
+        throw new AnnotatedError(
+          'INVALID_BLOCK_COINBASE',
+          `Coinbase transaction does not respect macroeconomic policy. ` +
+            `Coinbase output was ${coinbase.outputs[0].value}, while reward is ${BLOCK_REWARD} and fees were ${fees}.`,
+        );
+      }
+    }
+
+    await db.put(`blockutxo:${this.blockid}`, Array.from(stateAfter.outpoints));
+    logger.debug(
+      `UTXO state of block ${this.blockid} cached: ${JSON.stringify(
+        Array.from(stateAfter.outpoints),
+      )}`,
+    );
+  }
+  async validateAncestry(peer: Peer): Promise<Block | null> {
+    if (this.previd === null) {
+      // genesis
+      return null;
+    }
+
+    let parentBlock: Block;
+    try {
+      logger.debug(
+        `Retrieving parent block of ${this.blockid} (${this.previd})`,
+      );
+      const parentObject = await objectManager.retrieve(this.previd, peer);
+
+      if (!BlockObject.guard(parentObject)) {
+        throw new AnnotatedError(
+          'UNFINDABLE_OBJECT',
+          `Got parent of block ${this.blockid}, but it was not of BlockObject type; rejecting block.`,
+        );
+      }
+      parentBlock = await Block.fromNetworkObject(parentObject);
+      await parentBlock.validate(peer);
+    } catch (e: any) {
+      throw new AnnotatedError(
+        'UNFINDABLE_OBJECT',
+        `Retrieval of block parent for block ${this.blockid} failed; rejecting block: ${e.message}`,
+      );
+    }
+    return parentBlock;
+  }
+  async validate(peer: Peer) {
+    logger.debug(`Validating block ${this.blockid}`);
+
+    try {
+      if (this.T !== TARGET) {
+        throw new AnnotatedError(
+          'INVALID_FORMAT',
+          `Block ${this.blockid} does not specify the fixed target ${TARGET}, but uses target ${this.T} instead.`,
+        );
+      }
+      logger.debug(`Block target for ${this.blockid} is valid`);
+      if (!this.hasPoW()) {
+        throw new AnnotatedError(
+          'INVALID_BLOCK_POW',
+          `Block ${this.blockid} does not satisfy the proof-of-work equation; rejecting block.`,
+        );
+      }
+      logger.debug(`Block proof-of-work for ${this.blockid} is valid`);
+
+      let parentBlock: Block | null = null;
+      let stateBefore: UTXOSet | undefined;
+
+      if (this.isGenesis()) {
+        if (!util.isDeepStrictEqual(this.toNetworkObject(), GENESIS)) {
+          throw new AnnotatedError(
+            'INVALID_FORMAT',
+            `Invalid genesis block ${this.blockid}: ${JSON.stringify(
+              this.toNetworkObject(),
+            )}`,
+          );
+        }
+        logger.debug(`Block ${this.blockid} is genesis block`);
+        // genesis state
+        stateBefore = new UTXOSet(new Set<string>());
+        logger.debug(`State before block ${this.blockid} is the genesis state`);
+      } else {
+        parentBlock = await this.validateAncestry(peer);
+
+        if (parentBlock === null) {
+          throw new AnnotatedError(
+            'UNFINDABLE_OBJECT',
+            `Parent block of block ${this.blockid} was null`,
+          );
+        }
+
+        // this block's starting state is the previous block's ending state
+        stateBefore = await parentBlock.loadStateAfter();
+        logger.debug(`Loaded state before block ${this.blockid}`);
+      }
+      logger.debug(`Block ${this.blockid} has valid ancestry`);
+
+      if (stateBefore === undefined) {
+        throw new AnnotatedError(
+          'UNFINDABLE_OBJECT',
+          `We have not calculated the state of the parent block,` +
+            `so we cannot calculate the state of the current block with blockid = ${this.blockid}`,
+        );
+      }
+
+      logger.debug(`State before block ${this.blockid} is ${stateBefore}`);
+
+      await this.validateTx(peer, stateBefore);
+      logger.debug(`Block ${this.blockid} has valid transactions`);
+    } catch (e: any) {
+      throw e;
+    }
   }
 }

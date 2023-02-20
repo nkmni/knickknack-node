@@ -7,7 +7,6 @@ import {
   Number,
   Static,
   Null,
-  Unknown,
   Optional,
 } from 'runtypes';
 
@@ -16,6 +15,53 @@ const Sig = String.withConstraint(s => /^[0-9a-f]{128}$/.test(s));
 const PK = String.withConstraint(s => /^[0-9a-f]{64}$/.test(s));
 const NonNegative = Number.withConstraint(n => n >= 0);
 const Coins = NonNegative;
+const ErrorChoices = Union(
+  Literal('INTERNAL_ERROR'),
+  Literal('INVALID_FORMAT'),
+  Literal('UNKNOWN_OBJECT'),
+  Literal('UNFINDABLE_OBJECT'),
+  Literal('INVALID_HANDSHAKE'),
+  Literal('INVALID_TX_OUTPOINT'),
+  Literal('INVALID_TX_SIGNATURE'),
+  Literal('INVALID_TX_CONSERVATION'),
+  Literal('INVALID_BLOCK_COINBASE'),
+  Literal('INVALID_BLOCK_TIMESTAMP'),
+  Literal('INVALID_BLOCK_POW'),
+);
+
+export const ErrorMessage = Record({
+  type: Literal('error'),
+  name: ErrorChoices,
+  description: String,
+});
+export type ErrorMessageType = Static<typeof ErrorMessage>;
+export type ErrorChoice = Static<typeof ErrorChoices>;
+
+export class AnnotatedError extends Error {
+  err = '';
+  constructor(name: ErrorChoice, description: string) {
+    super(description);
+    this.name = name;
+    Object.setPrototypeOf(this, AnnotatedError.prototype);
+  }
+
+  getJSON() {
+    const jsonError = {
+      type: 'error',
+      name: this.name,
+      description: this.message,
+    };
+    if (ErrorMessage.guard(jsonError)) {
+      return jsonError;
+    } else {
+      return {
+        type: 'error',
+        name: 'INTERNAL_ERROR',
+        description: 'Something went wrong.',
+      };
+    }
+  }
+}
 
 export const OutpointObject = Record({
   txid: Hash,
@@ -52,6 +98,9 @@ export const TransactionObject = Union(
   SpendingTransactionObject,
 );
 export type TransactionObjectType = Static<typeof TransactionObject>;
+export const HumanReadable = String.withConstraint(
+  s => s.length <= 128 && s.match(/^[ -~]+$/) !== null, // ASCII-printable
+);
 
 export const BlockObject = Record({
   type: Literal('block'),
@@ -60,8 +109,9 @@ export const BlockObject = Record({
   previd: Union(Hash, Null),
   created: Number,
   T: Hash,
-  miner: String,
-  note: String,
+  miner: Optional(HumanReadable),
+  note: Optional(HumanReadable),
+  studentids: Optional(Array(String)),
 });
 export type BlockObjectType = Static<typeof BlockObject>;
 
@@ -104,78 +154,6 @@ export const ObjectMessage = Record({
 });
 export type ObjectMessageType = Static<typeof ObjectMessage>;
 
-const ErrorChoices = Union(
-  Literal('INTERNAL_ERROR'),
-  Literal('INVALID_FORMAT'),
-  Literal('UNKNOWN_OBJECT'),
-  Literal('UNFINDABLE_OBJECT'),
-  Literal('INVALID_HANDSHAKE'),
-  Literal('INVALID_TX_OUTPOINT'),
-  Literal('INVALID_TX_SIGNATURE'),
-  Literal('INVALID_TX_CONSERVATION'),
-  Literal('INVALID_BLOCK_COINBASE'),
-  Literal('INVALID_BLOCK_TIMESTAMP'),
-  Literal('INVALID_BLOCK_POW'),
-);
-export type ErrorChoice = Static<typeof ErrorChoices>;
-export const ErrorMessage = Record({
-  type: Literal('error'),
-  name: ErrorChoices,
-  description: String,
-});
-export type ErrorMessageType = Static<typeof ErrorMessage>;
-
-export class AnnotatedError extends Error {
-  err = '';
-  constructor(name: ErrorChoice, description: string) {
-    super(description);
-    this.name = name;
-    Object.setPrototypeOf(this, AnnotatedError.prototype);
-  }
-
-  getJSON() {
-    const jsonError = {
-      type: 'error',
-      name: this.name,
-      description: this.message,
-    };
-    if (ErrorMessage.guard(jsonError)) {
-      return jsonError;
-    } else {
-      return {
-        type: 'error',
-        name: 'INTERNAL_ERROR',
-        description: 'Something went wrong.',
-      };
-    }
-  }
-}
-
-/* GetMempool */
-export const GetMempoolMessage = Record({
-  type: Literal('getmempool'),
-});
-export type GetMempoolMessageType = Static<typeof GetMempoolMessage>;
-
-/* Mempool */
-export const MempoolMessage = Record({
-  type: Literal('mempool'),
-});
-export type MempoolMessageType = Static<typeof MempoolMessage>;
-
-/* Get Chain Tip */
-export const GetChainTipMessage = Record({
-  type: Literal('getchaintip'),
-});
-export type GetChainTipMessageType = Static<typeof GetChainTipMessage>;
-
-/* Chain Tip */
-export const ChainTipMessage = Record({
-  type: Literal('chaintip'),
-  blockid: String,
-});
-export type ChainTipMessageType = Static<typeof ChainTipMessage>;
-
 export const Messages = [
   HelloMessage,
   GetPeersMessage,
@@ -184,10 +162,6 @@ export const Messages = [
   GetObjectMessage,
   ObjectMessage,
   ErrorMessage,
-  GetMempoolMessage,
-  MempoolMessage,
-  GetChainTipMessage,
-  ChainTipMessage,
 ];
 export const Message = Union(
   HelloMessage,
@@ -197,9 +171,5 @@ export const Message = Union(
   GetObjectMessage,
   ObjectMessage,
   ErrorMessage,
-  GetMempoolMessage,
-  MempoolMessage,
-  GetChainTipMessage,
-  ChainTipMessage,
 );
 export type MessageType = Static<typeof Message>;

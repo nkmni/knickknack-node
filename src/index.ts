@@ -2,10 +2,13 @@ import { logger } from './logger';
 import { network } from './network';
 
 const BIND_PORT = 18018;
-const BIND_IP = '45.77.3.115';
+const BIND_IP = '0.0.0.0';
 
-logger.info(`Knickknack - A Marabu node`);
-logger.info(`Neil Khemani <nkhemani@stanford.edu>`);
-logger.info(`Lauren Kong <lakong@stanford.edu>`);
+logger.info(`Malibu - A Marabu node`);
+logger.info(`Dionysis Zindros <dionyziz@stanford.edu>`);
 
-network.init(BIND_PORT, BIND_IP);
+async function main() {
+  network.init(BIND_PORT, BIND_IP);
+}
+
+main();
