@@ -40,6 +40,8 @@ export class Block {
   studentids: string[] | undefined;
   blockid: string;
   fees: number | undefined;
+  valid: boolean | undefined;
+  height: number | undefined;
 
   public static async fromNetworkObject(
     object: BlockObjectType,
@@ -53,6 +55,7 @@ export class Block {
       object.miner,
       object.note,
       object.studentids,
+      false
     );
   }
   constructor(
@@ -64,6 +67,7 @@ export class Block {
     miner: string | undefined,
     note: string | undefined,
     studentids: string[] | undefined,
+    valid: boolean | undefined,
   ) {
     this.previd = previd;
     this.txids = txids;
@@ -74,6 +78,7 @@ export class Block {
     this.note = note;
     this.studentids = studentids;
     this.blockid = hash(canonicalize(this.toNetworkObject()));
+    this.valid = false;
   }
   async loadStateAfter(): Promise<UTXOSet | undefined> {
     try {
