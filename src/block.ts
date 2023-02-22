@@ -40,8 +40,6 @@ export class Block {
   studentids: string[] | undefined;
   blockid: string;
   fees: number | undefined;
-  valid: boolean | undefined;
-  height: number | undefined;
 
   public static async fromNetworkObject(
     object: BlockObjectType,
@@ -55,7 +53,6 @@ export class Block {
       object.miner,
       object.note,
       object.studentids,
-      false
     );
   }
   constructor(
@@ -67,7 +64,6 @@ export class Block {
     miner: string | undefined,
     note: string | undefined,
     studentids: string[] | undefined,
-    valid: boolean | undefined,
   ) {
     this.previd = previd;
     this.txids = txids;
@@ -78,7 +74,6 @@ export class Block {
     this.note = note;
     this.studentids = studentids;
     this.blockid = hash(canonicalize(this.toNetworkObject()));
-    this.valid = false;
   }
   async loadStateAfter(): Promise<UTXOSet | undefined> {
     try {
@@ -213,6 +208,13 @@ export class Block {
             `Coinbase output was ${coinbase.outputs[0].value}, while reward is ${BLOCK_REWARD} and fees were ${fees}.`,
         );
       }
+      const blockHeight = await this.getHeight();
+      if (coinbase.height !== blockHeight) {
+        throw new AnnotatedError(
+          'INVALID_BLOCK_COINBASE',
+          `Height (${coinbase.height}) of coinbase transaction (${coinbase.txid}) does not match block (${this.blockid}) height (${blockHeight})`,
+        );
+      }
     }
 
     await db.put(`blockutxo:${this.blockid}`, Array.from(stateAfter.outpoints));
@@ -299,6 +301,16 @@ export class Block {
         // this block's starting state is the previous block's ending state
         stateBefore = await parentBlock.loadStateAfter();
         logger.debug(`Loaded state before block ${this.blockid}`);
+
+        if (
+          this.created <= parentBlock.created ||
+          this.created > Date.now() / 1000
+        ) {
+          throw new AnnotatedError(
+            'INVALID_BLOCK_TIMESTAMP',
+            `Block ${this.blockid} has invalid timestamp.`,
+          );
+        }
       }
       logger.debug(`Block ${this.blockid} has valid ancestry`);
 
@@ -317,5 +329,21 @@ export class Block {
     } catch (e: any) {
       throw e;
     }
+  }
+  async getHeight() {
+    let height = 0;
+    let currentBlockId = this.previd;
+    while (currentBlockId !== null) {
+      height += 1;
+      try {
+        currentBlockId = (await objectManager.get(currentBlockId)).previd;
+      } catch (e) {
+        throw new AnnotatedError(
+          'INTERNAL_ERROR',
+          `Could not calculate height of block ${this.blockid}`,
+        );
+      }
+    }
+    return height;
   }
 }
