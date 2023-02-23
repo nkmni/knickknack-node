@@ -13,6 +13,7 @@ import util from 'util';
 import { UTXOSet } from './utxo';
 import { logger } from './logger';
 import { Transaction } from './transaction';
+import { chainManager } from './chain';
 
 const TARGET =
   '00000000abc00000000000000000000000000000000000000000000000000000';
@@ -208,6 +209,13 @@ export class Block {
             `Coinbase output was ${coinbase.outputs[0].value}, while reward is ${BLOCK_REWARD} and fees were ${fees}.`,
         );
       }
+      const blockHeight = await this.getHeight();
+      if (coinbase.height !== blockHeight) {
+        throw new AnnotatedError(
+          'INVALID_BLOCK_COINBASE',
+          `Height (${coinbase.height}) of coinbase transaction (${coinbase.txid}) does not match block (${this.blockid}) height (${blockHeight})`,
+        );
+      }
     }
 
     await db.put(`blockutxo:${this.blockid}`, Array.from(stateAfter.outpoints));
@@ -294,6 +302,16 @@ export class Block {
         // this block's starting state is the previous block's ending state
         stateBefore = await parentBlock.loadStateAfter();
         logger.debug(`Loaded state before block ${this.blockid}`);
+
+        if (
+          this.created <= parentBlock.created ||
+          this.created > Date.now() / 1000
+        ) {
+          throw new AnnotatedError(
+            'INVALID_BLOCK_TIMESTAMP',
+            `Block ${this.blockid} has invalid timestamp.`,
+          );
+        }
       }
       logger.debug(`Block ${this.blockid} has valid ancestry`);
 
@@ -309,8 +327,26 @@ export class Block {
 
       await this.validateTx(peer, stateBefore);
       logger.debug(`Block ${this.blockid} has valid transactions`);
+
+      chainManager.updateChainTip(this);
     } catch (e: any) {
       throw e;
     }
+  }
+  async getHeight() {
+    let height = 0;
+    let currentBlockId = this.previd;
+    while (currentBlockId !== null) {
+      height += 1;
+      try {
+        currentBlockId = (await objectManager.get(currentBlockId)).previd;
+      } catch (e) {
+        throw new AnnotatedError(
+          'INTERNAL_ERROR',
+          `Could not calculate height of block ${this.blockid}`,
+        );
+      }
+    }
+    return height;
   }
 }

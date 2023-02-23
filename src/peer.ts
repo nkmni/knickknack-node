@@ -12,6 +12,8 @@ import {
   ObjectMessage,
   ErrorMessage,
   MessageType,
+  GetChainTipMessage,
+  ChainTipMessage,
   HelloMessageType,
   PeersMessageType,
   GetPeersMessageType,
@@ -19,7 +21,11 @@ import {
   GetObjectMessageType,
   ObjectMessageType,
   ErrorMessageType,
+  GetChainTipMessageType,
+  ChainTipMessageType,
   AnnotatedError,
+  GetMempoolMessageType,
+  MempoolMessageType,
 } from './message';
 import { peerManager } from './peermanager';
 import { canonicalize } from 'json-canonicalize';
@@ -28,6 +34,7 @@ import { network } from './network';
 import { ObjectId } from './object';
 import { Block } from './block';
 import { Transaction } from './transaction';
+import { chainManager } from './chain';
 
 const VERSION = '0.9.0';
 const NAME = 'Malibu (pset3)';
@@ -89,6 +96,17 @@ export class Peer {
       );
     }
   }
+  async sendGetChainTip() {
+    this.sendMessage({
+      type: 'getchaintip',
+    });
+  }
+  async sendChainTip(blockid: ObjectId) {
+    this.sendMessage({
+      type: 'chaintip',
+      blockid,
+    });
+  }
   sendMessage(obj: object) {
     const message: string = canonicalize(obj);
 
@@ -109,6 +127,7 @@ export class Peer {
     this.active = true;
     await this.sendHello();
     await this.sendGetPeers();
+    await this.sendGetChainTip();
   }
   async onTimeout() {
     return await this.fatalError(
@@ -170,6 +189,10 @@ export class Peer {
       this.onMessageGetObject.bind(this),
       this.onMessageObject.bind(this),
       this.onMessageError.bind(this),
+      this.onMessageGetMempool.bind(this),
+      this.onMessageMempool.bind(this),
+      this.onMessageGetChainTip.bind(this),
+      this.onMessageChainTip.bind(this),
     )(msg);
   }
   async onMessageHello(msg: HelloMessageType) {
@@ -263,6 +286,21 @@ export class Peer {
   }
   async onMessageError(msg: ErrorMessageType) {
     this.warn(`Peer reported error: ${msg.name}`);
+  }
+
+  async onMessageGetMempool(msg: GetMempoolMessageType) {}
+  async onMessageMempool(msg: MempoolMessageType) {}
+
+  async onMessageGetChainTip(msg: GetChainTipMessageType) {
+    this.info(`Remote party is requesting current blockchain tip. Sharing.`);
+    await this.sendChainTip(chainManager.chainTipId);
+  }
+  async onMessageChainTip(msg: ChainTipMessageType) {
+    this.info(`Peer claims knowledge of block of current tip: ${msg.blockid}`);
+    if (!(await objectManager.exists(msg.blockid))) {
+      this.info(`Object ${msg.blockid} discovered`);
+      await this.sendGetObject(msg.blockid);
+    }
   }
   log(level: string, message: string, ...args: any[]) {
     logger.log(
