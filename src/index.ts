@@ -1,3 +1,4 @@
+import { chainManager } from './chain';
 import { logger } from './logger';
 import { network } from './network';
 
@@ -8,6 +9,7 @@ logger.info(`Malibu - A Marabu node`);
 logger.info(`Dionysis Zindros <dionyziz@stanford.edu>`);
 
 async function main() {
+  await chainManager.load();
   network.init(BIND_PORT, BIND_IP);
 }
 

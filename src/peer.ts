@@ -32,6 +32,7 @@ import { network } from './network';
 import { ObjectId } from './object';
 import { Block } from './block';
 import { Transaction } from './transaction';
+import { chainManager } from './chain';
 
 const VERSION = '0.9.0';
 const NAME = 'Malibu (pset3)';
@@ -93,15 +94,15 @@ export class Peer {
       );
     }
   }
-  async sendGetChainTip(){
+  async sendGetChainTip() {
     this.sendMessage({
       type: 'getchaintip',
     });
   }
-  async sendChainTip(objid: ObjectId) { // this should be a blockid
+  async sendChainTip(blockid: ObjectId) {
     this.sendMessage({
       type: 'chaintip',
-      blockid: objid,
+      blockid,
     });
   }
   sendMessage(obj: object) {
@@ -284,16 +285,13 @@ export class Peer {
   }
   async onMessageGetChainTip(msg: GetChainTipMessageType) {
     this.info(`Remote party is requesting current blockchain tip. Sharing.`);
-    // get blockid of current tip
-    // await this.sendChainTip(blockid of current tip);
+    await this.sendChainTip(chainManager.chainTipId);
   }
   async onMessageChainTip(msg: ChainTipMessageType) {
     this.info(`Peer claims knowledge of block of current tip: ${msg.blockid}`);
-    if (!(await db.exists(msg.blockid))) {
+    if (!(await objectManager.exists(msg.blockid))) {
       this.info(`Object ${msg.blockid} discovered`);
       await this.sendGetObject(msg.blockid);
-      // TODO NEIL: Call Neil's Helper Function from Part 1 to recursively download/validate each block in chain
-      // TODO LAUREN: Update longest chain if required
     }
   }
   log(level: string, message: string, ...args: any[]) {
