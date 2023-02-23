@@ -165,6 +165,18 @@ export const ChainTipMessage = Record({
 });
 export type ChainTipMessageType = Static<typeof ChainTipMessage>;
 
+/* GetMempool */
+export const GetMempoolMessage = Record({
+  type: Literal('getmempool'),
+});
+export type GetMempoolMessageType = Static<typeof GetMempoolMessage>;
+
+/* Mempool */
+export const MempoolMessage = Record({
+  type: Literal('mempool'),
+});
+export type MempoolMessageType = Static<typeof MempoolMessage>;
+
 export const Messages = [
   HelloMessage,
   GetPeersMessage,
@@ -173,6 +185,8 @@ export const Messages = [
   GetObjectMessage,
   ObjectMessage,
   ErrorMessage,
+  GetMempoolMessage,
+  MempoolMessage,
   GetChainTipMessage,
   ChainTipMessage,
 ];
@@ -184,6 +198,8 @@ export const Message = Union(
   GetObjectMessage,
   ObjectMessage,
   ErrorMessage,
+  GetMempoolMessage,
+  MempoolMessage,
   GetChainTipMessage,
   ChainTipMessage,
 );

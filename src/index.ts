@@ -3,10 +3,10 @@ import { logger } from './logger';
 import { network } from './network';
 
 const BIND_PORT = 18018;
-const BIND_IP = '0.0.0.0';
+const BIND_IP = '45.77.3.115';
 
-logger.info(`Malibu - A Marabu node`);
-logger.info(`Dionysis Zindros <dionyziz@stanford.edu>`);
+logger.info(`Knickknack Marabu Node`);
+logger.info(`Neil Khemani & Lauren Kong`);
 
 async function main() {
   await chainManager.load();
