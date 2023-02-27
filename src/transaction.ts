@@ -5,6 +5,7 @@ import {
   TransactionOutputObjectType,
   OutpointObjectType,
   SpendingTransactionObject,
+  ErrorMessageType,
   AnnotatedError,
 } from './message';
 import { PublicKey, Signature } from './crypto/signature';

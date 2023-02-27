@@ -1,33 +1,35 @@
 import { Block } from './block';
-import { ObjectId, db, objectManager } from './object';
+import { logger } from './logger';
 
 class ChainManager {
-  chainTipHeight: number = 0;
-  chainTipId: ObjectId =
-    '0000000052a0e645eca917ae1c196e0d0a4fb756747f29ef52594d68484bb5e2'; // Genesis block
+  longestChainHeight: number = 0;
+  longestChainTip: Block | null = null;
 
-  async load() {
-    try {
-      this.chainTipId = await db.get('chaintip');
-    } catch {
-      await this.store();
-      return;
+  async init() {
+    this.longestChainTip = await Block.makeGenesis();
+  }
+  async onValidBlockArrival(block: Block) {
+    if (!block.valid) {
+      throw new Error(
+        `Received onValidBlockArrival() call for invalid block ${block.blockid}`,
+      );
     }
-    const chainTipObj = await objectManager.get(this.chainTipId);
-    const chainTip = await Block.fromNetworkObject(chainTipObj);
-    this.chainTipHeight = await chainTip.getHeight();
-  }
+    const height = block.height;
 
-  async store() {
-    await db.put('chaintip', this.chainTipId);
-  }
-
-  async updateChainTip(block: Block) {
-    const blockHeight = await block.getHeight();
-    if (blockHeight > this.chainTipHeight) {
-      this.chainTipHeight = blockHeight;
-      this.chainTipId = block.blockid;
-      await this.store();
+    if (this.longestChainTip === null) {
+      throw new Error('We do not have a local chain to compare against');
+    }
+    if (height === undefined) {
+      throw new Error(
+        `We received a block ${block.blockid} we thought was valid, but had no calculated height.`,
+      );
+    }
+    if (height > this.longestChainHeight) {
+      logger.debug(
+        `New longest chain has height ${height} and tip ${block.blockid}`,
+      );
+      this.longestChainHeight = height;
+      this.longestChainTip = block;
     }
   }
 }

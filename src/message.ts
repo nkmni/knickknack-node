@@ -7,8 +7,10 @@ import {
   Number,
   Static,
   Null,
+  Unknown,
   Optional,
 } from 'runtypes';
+import { logger } from './logger';
 
 const Hash = String.withConstraint(s => /^[0-9a-f]{64}$/.test(s));
 const Sig = String.withConstraint(s => /^[0-9a-f]{128}$/.test(s));
@@ -27,6 +29,7 @@ const ErrorChoices = Union(
   Literal('INVALID_BLOCK_COINBASE'),
   Literal('INVALID_BLOCK_TIMESTAMP'),
   Literal('INVALID_BLOCK_POW'),
+  Literal('INVALID_GENESIS'),
 );
 
 export const ErrorMessage = Record({
@@ -165,18 +168,6 @@ export const ChainTipMessage = Record({
 });
 export type ChainTipMessageType = Static<typeof ChainTipMessage>;
 
-/* GetMempool */
-export const GetMempoolMessage = Record({
-  type: Literal('getmempool'),
-});
-export type GetMempoolMessageType = Static<typeof GetMempoolMessage>;
-
-/* Mempool */
-export const MempoolMessage = Record({
-  type: Literal('mempool'),
-});
-export type MempoolMessageType = Static<typeof MempoolMessage>;
-
 export const Messages = [
   HelloMessage,
   GetPeersMessage,
@@ -184,11 +175,9 @@ export const Messages = [
   IHaveObjectMessage,
   GetObjectMessage,
   ObjectMessage,
-  ErrorMessage,
-  GetMempoolMessage,
-  MempoolMessage,
   GetChainTipMessage,
   ChainTipMessage,
+  ErrorMessage,
 ];
 export const Message = Union(
   HelloMessage,
@@ -197,10 +186,8 @@ export const Message = Union(
   IHaveObjectMessage,
   GetObjectMessage,
   ObjectMessage,
-  ErrorMessage,
-  GetMempoolMessage,
-  MempoolMessage,
   GetChainTipMessage,
   ChainTipMessage,
+  ErrorMessage,
 );
 export type MessageType = Static<typeof Message>;
