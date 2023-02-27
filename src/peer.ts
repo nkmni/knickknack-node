@@ -10,6 +10,8 @@ import {
   IHaveObjectMessageType,
   GetObjectMessageType,
   ObjectMessageType,
+  GetMempoolMessageType,
+  MempoolMessageType,
   GetChainTipMessageType,
   ChainTipMessageType,
   ErrorMessageType,
@@ -72,6 +74,17 @@ export class Peer {
       objectid: objid,
     });
   }
+  async sendGetMempool() {
+    this.sendMessage({
+      type: 'getmempool',
+    });
+  }
+  async sendMempool() {
+    this.sendMessage({
+      type: 'mempool',
+      txids: [],
+    });
+  }
   async sendGetChainTip() {
     this.sendMessage({
       type: 'getchaintip',
@@ -116,6 +129,7 @@ export class Peer {
     await this.sendHello();
     await this.sendGetPeers();
     await this.sendGetChainTip();
+    await this.sendMempool();
   }
   async onTimeout() {
     return await this.fatalError(
@@ -176,6 +190,8 @@ export class Peer {
       this.onMessageIHaveObject.bind(this),
       this.onMessageGetObject.bind(this),
       this.onMessageObject.bind(this),
+      this.onMessageGetMempool.bind(this),
+      this.onMessageMempool.bind(this),
       this.onMessageGetChainTip.bind(this),
       this.onMessageChainTip.bind(this),
       this.onMessageError.bind(this),
@@ -268,6 +284,21 @@ export class Peer {
         type: 'ihaveobject',
         objectid,
       });
+    }
+  }
+  async onMessageGetMempool(msg: GetMempoolMessageType) {
+    /*if (chainManager.longestChainTip === null) {
+      this.warn(`Chain was not initialized when a peer requested it`);
+      return;
+    }
+    this.sendChainTip(chainManager.longestChainTip.blockid);*/
+  }
+  async onMessageMempool(msg: MempoolMessageType) {
+    for (const txid of msg.txids) {
+      if (await objectManager.exists(txid)) {
+        continue;
+      }
+      this.sendGetObject(txid);
     }
   }
   async onMessageGetChainTip(msg: GetChainTipMessageType) {
