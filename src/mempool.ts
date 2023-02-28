@@ -6,6 +6,14 @@ import { UTXOSet } from './utxo';
 import { objectManager } from './object';
 import { Outpoint, Transaction } from './transaction';
 import { Peer } from './peer';
+import {
+    BlockObject,
+    BlockObjectType,
+    TransactionObject,
+    ObjectType,
+    AnnotatedError,
+    ErrorChoice,
+  } from './message';
 
 class MempoolManager {
   utxo: UTXOSet = new UTXOSet(new Set<string>());;
@@ -48,6 +56,12 @@ class MempoolManager {
         let parentBlock: Block;
         try {
           const parentObject = await objectManager.retrieve(previd, peer);
+          if (!BlockObject.guard(parentObject)) {
+            throw new AnnotatedError(
+              'UNFINDABLE_OBJECT',
+              `Got parent of block ${block.blockid}, but it was not of BlockObject type; rejecting block.`,
+            );
+          }
           parentBlock = await Block.fromNetworkObject(parentObject);
           chain.unshift(parentBlock);
           previd = parentBlock.previd;
