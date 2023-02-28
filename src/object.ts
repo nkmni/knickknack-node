@@ -68,7 +68,6 @@ class ObjectManager {
         logger.debug(`Validating transaction: ${tx.txid}`);
         await tx.validate();
         // Newly added for PSET 5
-        await mempoolManager.addTxid(tx.txid);
         await mempoolManager.updateMempoolTx(tx, peer);
         return tx;
       },

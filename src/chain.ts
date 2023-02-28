@@ -1,6 +1,7 @@
 import { Block } from './block';
 import { logger } from './logger';
 import { mempoolManager } from './mempool';
+import { Peer } from './peer';
 
 class ChainManager {
   longestChainHeight: number = 0;
@@ -9,7 +10,7 @@ class ChainManager {
   async init() {
     this.longestChainTip = await Block.makeGenesis();
   }
-  async onValidBlockArrival(block: Block) {
+  async onValidBlockArrival(block: Block, peer: Peer) {
     if (!block.valid) {
       throw new Error(
         `Received onValidBlockArrival() call for invalid block ${block.blockid}`,
@@ -30,13 +31,10 @@ class ChainManager {
         `New longest chain has height ${height} and tip ${block.blockid}`,
       );
       // Mempool Update
-      if (block.previd == this.longestChainTip.blockid) { // adding to existing longest chain
+      if (block.previd === this.longestChainTip.blockid) { // adding to existing longest chain
         await mempoolManager.updateMempoolBlock(block);
       } else { // reorg needed
-        // TODO:  Mempool state is rolled back to after the latest common ancestor between the old canonical chain and the new reorged chain
-        //  State transitions are applied from that point onwards. 
-        // As for the new mempool, it is reconstructed by attempting to apply first all the transactions in the abandoned fork, 
-        // and then the transactions in the old mempool
+        await mempoolManager.chainReorg(this.longestChainTip, block, peer);
       }
       this.longestChainHeight = height;
       this.longestChainTip = block;

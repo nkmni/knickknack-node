@@ -25,6 +25,7 @@ import { ObjectId } from './object';
 import { chainManager } from './chain';
 import { Block } from './block';
 import { Transaction } from './transaction';
+import { mempoolManager } from './mempool';
 
 const VERSION = '0.9.0';
 const NAME = 'Malibu (pset4)';
@@ -287,6 +288,7 @@ export class Peer {
     }
   }
   async onMessageGetMempool(msg: GetMempoolMessageType) {
+    mempoolManager.utxo
     /*if (chainManager.longestChainTip === null) {
       this.warn(`Chain was not initialized when a peer requested it`);
       return;
