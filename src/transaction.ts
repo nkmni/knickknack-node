@@ -199,9 +199,23 @@ export class Transaction {
           );
         }
 
-        return prevOutput.value;
+        return [prevOutput.value, input.outpoint];
       }),
     );
+
+    for (let i = 0; i < inputValues.length; ++i) {
+      for (let j = i + 1; j < inputValues.length; ++j) {
+        if (
+          (inputValues[i][1] as Outpoint).equals(inputValues[j][1] as Outpoint)
+        ) {
+          throw new AnnotatedError(
+            'INVALID_TX_OUTPOINT',
+            `Transaction ${this.txid} contains 2 inputs with the same outpoint`,
+          );
+        }
+      }
+    }
+
     let sumInputs = 0;
     let sumOutputs = 0;
 
@@ -209,7 +223,7 @@ export class Transaction {
       `Checking the law of conservation for transaction ${this.txid}`,
     );
     for (const inputValue of inputValues) {
-      sumInputs += inputValue;
+      sumInputs += inputValue[0] as number;
     }
     logger.debug(`Sum of inputs is ${sumInputs}`);
     for (const output of this.outputs) {

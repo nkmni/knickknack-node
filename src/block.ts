@@ -287,6 +287,23 @@ export class Block {
     }
     return parentBlock;
   }
+  isAscii(str: string | undefined) {
+    if (str === undefined) return true;
+    return /^[\x00-\x7F]*$/.test(str);
+  }
+  hasValidStudentIds(): boolean {
+    if (this.studentids === undefined) return true;
+    if (this.studentids.length > 10) return false;
+    for (const studentid of this.studentids) {
+      if (!this.isAscii(studentid)) {
+        return false;
+      }
+      if (studentid.length > 128) {
+        return false;
+      }
+    }
+    return true;
+  }
   async validate(peer: Peer) {
     logger.debug(`Validating block ${this.blockid}`);
 
@@ -323,6 +340,18 @@ export class Block {
         );
       }
       logger.debug(`Block proof-of-work for ${this.blockid} is valid`);
+      if (!this.isAscii(this.note) || !this.isAscii(this.miner)) {
+        throw new AnnotatedError(
+          'INVALID_FORMAT',
+          `Block ${this.blockid} has miner or note field that contains non-ascii chars`,
+        );
+      }
+      if (!this.hasValidStudentIds()) {
+        throw new AnnotatedError(
+          'INVALID_FORMAT',
+          `Block ${this.blockid} has invalid studentids field`,
+        );
+      }
 
       let parentBlock: Block | null = null;
       let stateBefore: UTXOSet | undefined;
