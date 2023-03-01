@@ -444,4 +444,19 @@ export class Block {
     this.stateAfter = new UTXOSet(new Set<string>(stateAfterOutpoints));
     this.valid = true;
   }
+  async isInPrefixOf(otherBlock: Block): Promise<boolean> {
+    if (this.height === undefined || otherBlock.height === undefined) {
+      throw new Error('isInPrefixOf: undefined height encountered');
+    }
+    if (this.height === 0) return true;
+    if (otherBlock.height < this.height) return false;
+    let currentHeight = otherBlock.height;
+    while (currentHeight > this.height) {
+      otherBlock = await Block.fromNetworkObject(
+        await objectManager.get(otherBlock.previd!),
+      );
+      --currentHeight;
+    }
+    return this.blockid === otherBlock.blockid;
+  }
 }

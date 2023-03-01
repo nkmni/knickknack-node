@@ -31,10 +31,12 @@ class ChainManager {
         `New longest chain has height ${height} and tip ${block.blockid}`,
       );
       // Mempool Update
-      if (block.previd === this.longestChainTip.blockid) { // adding to existing longest chain
-        await mempoolManager.updateMempoolBlock(block);
-      } else { // reorg needed
-        await mempoolManager.chainReorg(this.longestChainTip, block, peer);
+      if (await this.longestChainTip.isInPrefixOf(block)) {
+        // adding to existing longest chain
+        await mempoolManager.updateMempoolBlocks(block);
+      } else {
+        // reorg needed
+        await mempoolManager.chainReorg(block, peer);
       }
       this.longestChainHeight = height;
       this.longestChainTip = block;
