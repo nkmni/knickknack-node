@@ -22,6 +22,7 @@ class MempoolManager {
 
   // on init, set utxo to longest chain tip's, populate txids
   async init() { 
+    logger.log('debug', "mempoolManager init");
     if (chainManager.longestChainTip !== null) {
         this.utxo = chainManager.longestChainTip!.stateAfter!;
         for (const outpoint of this.utxo.outpoints) {
