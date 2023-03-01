@@ -14,42 +14,69 @@ import {
   AnnotatedError,
   ErrorChoice,
 } from './message';
+import { Deferred } from './promise';
 
 class MempoolManager {
   utxo: UTXOSet = new UTXOSet(new Set<string>());
   // txids for the current mempool
-  txids: String[] = [];
+  txids: string[] = [];
+  initialized: boolean = false;
+  deferredInit: Deferred<boolean> | undefined = undefined;
 
   // on init, set utxo to longest chain tip's, populate txids
-  async init() {
+  async init(blockid: string, peer: Peer) {
     logger.log('debug', 'mempoolManager init');
-    if (chainManager.longestChainTip !== null) {
-      this.utxo = chainManager.longestChainTip!.stateAfter!;
-      // for (const outpoint of this.utxo.outpoints) {
-      //     this.txids.push(JSON.parse(outpoint).txid)
-      // }
+    while (this.deferredInit !== undefined) {
+      const alreadyInitialized = await this.deferredInit.promise;
+      if (this.initialized) {
+        return;
+      }
     }
-  }
-  async updateMempoolTx(tx: Transaction, peer: Peer) {
-    try {
-      this.utxo.apply(tx);
-      this.txids.push(tx.txid);
-    } catch (e: any) {
-      peer.sendError(e);
+    this.deferredInit = new Deferred<boolean>();
+    const blockObj = await objectManager.retrieve(blockid, peer);
+    if (!BlockObject.guard(blockObj)) {
+      peer.sendError(
+        new AnnotatedError(
+          'INVALID_FORMAT',
+          'Received chaintip is not a block',
+        ),
+      );
+      this.deferredInit.resolve(false);
+      this.deferredInit = undefined;
       return;
     }
+    const chainTip = await Block.fromNetworkObject(blockObj);
+    this.utxo = chainTip.stateAfter!;
+    this.initialized = true;
+    this.deferredInit.resolve(true);
+    this.deferredInit = undefined;
+  }
+  async updateMempoolTx(tx: Transaction) {
+    try {
+      await this.utxo.apply(tx);
+      this.txids.push(tx.txid);
+    } catch {}
   }
   async updateMempoolBlock(block: Block) {
     const blockTxs = await block.getTxs();
     for (const tx of blockTxs) {
       // remove from mempool
-      const index = this.txids.indexOf(tx.txid, 0);
+      const index = this.txids.indexOf(tx.txid);
       if (index > -1) {
         this.txids.splice(index, 1);
       }
       // updating mempool state
       await this.utxo.apply(tx);
-      // TODO: remove now invalid other txs
+    }
+    // remove conflicting txs
+    for (let txid of this.txids) {
+      for (const tx of blockTxs) {
+        const oldMempoolTx = (await objectManager.get(txid)) as Transaction;
+        if (oldMempoolTx.conflictsWith(tx)) {
+          const index = this.txids.indexOf(txid);
+          this.txids.splice(index, 1);
+        }
+      }
     }
   }
   async getChainIds(block: Block, peer: Peer) {
@@ -100,19 +127,8 @@ class MempoolManager {
     }
     // apply each tx to new mempool UTXO
     for (const tx of oldChainTxs) {
-      this.updateMempoolTx(tx, peer);
+      this.updateMempoolTx(tx);
     }
-    // Apply the transactions that used to be in your mempool pre-fork.
-    // const oldUtxoTxs = [];
-    // for (const outpoint of oldUtxo.outpoints) {
-    //   oldUtxoTxs.push(JSON.parse(outpoint).txid);
-    // }
-    // for (const tx of oldUtxoTxs) {
-    //   try {
-    //     this.utxo.apply(tx);
-    //     this.txids.push(tx.txid);
-    //   } catch (e) {}
-    // }
   }
 }
 export const mempoolManager = new MempoolManager();

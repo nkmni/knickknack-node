@@ -56,6 +56,11 @@ export class Outpoint {
     }
     return refTx.outputs[this.index];
   }
+  equals(otherOutpoint: Outpoint): boolean {
+    return (
+      this.txid === otherOutpoint.txid && this.index === otherOutpoint.index
+    );
+  }
   toNetworkObject(): OutpointObjectType {
     return {
       txid: this.txid,
@@ -220,6 +225,16 @@ export class Transaction {
     this.fees = sumInputs - sumOutputs;
     logger.debug(`Transaction ${this.txid} pays fees ${this.fees}`);
     logger.debug(`Transaction ${this.txid} is valid`);
+  }
+  conflictsWith(otherTx: Transaction): boolean {
+    for (const input of this.inputs) {
+      for (const otherInput of otherTx.inputs) {
+        if (input.outpoint.equals(otherInput.outpoint)) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
   inputsUnsigned() {
     return this.inputs.map(input => input.toUnsigned().toNetworkObject());

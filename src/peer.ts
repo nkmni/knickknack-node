@@ -288,7 +288,7 @@ export class Peer {
     }
   }
   async onMessageGetMempool(msg: GetMempoolMessageType) {
-    this.warn("Inside getMempool");
+    this.warn('Inside getMempool');
     this.sendMempool();
   }
   async onMessageMempool(msg: MempoolMessageType) {
@@ -307,10 +307,12 @@ export class Peer {
     this.sendChainTip(chainManager.longestChainTip.blockid);
   }
   async onMessageChainTip(msg: ChainTipMessageType) {
-    if (await objectManager.exists(msg.blockid)) {
-      return;
+    if (!(await objectManager.exists(msg.blockid))) {
+      this.sendGetObject(msg.blockid);
     }
-    this.sendGetObject(msg.blockid);
+    if (!mempoolManager.initialized) {
+      await mempoolManager.init(msg.blockid, this);
+    }
   }
   async onMessageError(msg: ErrorMessageType) {
     this.warn(`Peer reported error: ${msg.name}`);
