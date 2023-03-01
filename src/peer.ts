@@ -80,10 +80,10 @@ export class Peer {
       type: 'getmempool',
     });
   }
-  async sendMempool(obj: any) {
+  async sendMempool() {
     this.sendMessage({
       type: 'mempool',
-      txids: obj,
+      txids: [...mempoolManager.txids],
     });
   }
   async sendGetChainTip() {
@@ -288,7 +288,7 @@ export class Peer {
     }
   }
   async onMessageGetMempool(msg: GetMempoolMessageType) {
-    this.sendMempool(mempoolManager.txids);
+    this.sendMempool();
   }
   async onMessageMempool(msg: MempoolMessageType) {
     for (const txid of msg.txids) {
