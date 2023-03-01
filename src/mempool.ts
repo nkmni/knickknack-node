@@ -7,36 +7,36 @@ import { objectManager } from './object';
 import { Outpoint, Transaction } from './transaction';
 import { Peer } from './peer';
 import {
-    BlockObject,
-    BlockObjectType,
-    TransactionObject,
-    ObjectType,
-    AnnotatedError,
-    ErrorChoice,
-  } from './message';
+  BlockObject,
+  BlockObjectType,
+  TransactionObject,
+  ObjectType,
+  AnnotatedError,
+  ErrorChoice,
+} from './message';
 
 class MempoolManager {
-  utxo: UTXOSet = new UTXOSet(new Set<string>());;
+  utxo: UTXOSet = new UTXOSet(new Set<string>());
   // txids for the current mempool
   txids: String[] = [];
 
   // on init, set utxo to longest chain tip's, populate txids
-  async init() { 
-    logger.log('debug', "mempoolManager init");
+  async init() {
+    logger.log('debug', 'mempoolManager init');
     if (chainManager.longestChainTip !== null) {
-        this.utxo = chainManager.longestChainTip!.stateAfter!;
-        for (const outpoint of this.utxo.outpoints) {
-            this.txids.push(JSON.parse(outpoint).txid)
-        }
+      this.utxo = chainManager.longestChainTip!.stateAfter!;
+      // for (const outpoint of this.utxo.outpoints) {
+      //     this.txids.push(JSON.parse(outpoint).txid)
+      // }
     }
   }
   async updateMempoolTx(tx: Transaction, peer: Peer) {
     try {
-        this.utxo.apply(tx);
-        this.txids.push(tx.txid);
+      this.utxo.apply(tx);
+      this.txids.push(tx.txid);
     } catch (e: any) {
-        peer.sendError(e);
-        return;
+      peer.sendError(e);
+      return;
     }
   }
   async updateMempoolBlock(block: Block) {
@@ -54,24 +54,24 @@ class MempoolManager {
   }
   async getChainIds(block: Block, peer: Peer) {
     let previd = block.previd;
-    const chain:Block[] = [ block ];
+    const chain: Block[] = [block];
     while (previd !== null) {
-        let parentBlock: Block;
-        try {
-          const parentObject = await objectManager.retrieve(previd, peer);
-          if (!BlockObject.guard(parentObject)) {
-            throw new AnnotatedError(
-              'UNFINDABLE_OBJECT',
-              `Got parent of block ${block.blockid}, but it was not of BlockObject type; rejecting block.`,
-            );
-          }
-          parentBlock = await Block.fromNetworkObject(parentObject);
-          chain.unshift(parentBlock);
-          previd = parentBlock.previd;
-        } catch (e: any) {
-            peer.sendError(e);
-            return;
+      let parentBlock: Block;
+      try {
+        const parentObject = await objectManager.retrieve(previd, peer);
+        if (!BlockObject.guard(parentObject)) {
+          throw new AnnotatedError(
+            'UNFINDABLE_OBJECT',
+            `Got parent of block ${block.blockid}, but it was not of BlockObject type; rejecting block.`,
+          );
         }
+        parentBlock = await Block.fromNetworkObject(parentObject);
+        chain.unshift(parentBlock);
+        previd = parentBlock.previd;
+      } catch (e: any) {
+        peer.sendError(e);
+        return;
+      }
     }
     return chain;
   }
@@ -86,31 +86,33 @@ class MempoolManager {
     const newChain = await this.getChainIds(newTip, peer);
     let forkIndex = 0;
     for (let i = 0; i < oldChain!.length; i++) {
-        if (oldChain![i].blockid == newChain![i].blockid) continue; 
-        else forkIndex = i;
+      if (oldChain![i].blockid == newChain![i].blockid) continue;
+      else {
+        forkIndex = i;
+        break;
+      }
     }
     // from common ancestor -> old chain, get all txs
-    const oldChainTxs:Transaction[] = [];
+    const oldChainTxs: Transaction[] = [];
     for (let j = forkIndex; j < oldChain!.length; j++) {
-        const txs = await oldChain![j].getTxs();
-        oldChainTxs.push(...txs);
+      const txs = await oldChain![j].getTxs();
+      oldChainTxs.push(...txs);
     }
     // apply each tx to new mempool UTXO
     for (const tx of oldChainTxs) {
-        this.updateMempoolTx(tx, peer);
+      this.updateMempoolTx(tx, peer);
     }
     // Apply the transactions that used to be in your mempool pre-fork.
-    const oldUtxoTxs = [];
-    for (const outpoint of oldUtxo.outpoints) {
-        oldUtxoTxs.push(JSON.parse(outpoint).txid)
-    }
-    for (const tx of oldUtxoTxs) {
-        try {
-            this.utxo.apply(tx);
-            this.txids.push(tx.txid);
-        } catch (e){}
-    }
+    // const oldUtxoTxs = [];
+    // for (const outpoint of oldUtxo.outpoints) {
+    //   oldUtxoTxs.push(JSON.parse(outpoint).txid);
+    // }
+    // for (const tx of oldUtxoTxs) {
+    //   try {
+    //     this.utxo.apply(tx);
+    //     this.txids.push(tx.txid);
+    //   } catch (e) {}
+    // }
   }
 }
 export const mempoolManager = new MempoolManager();
-
