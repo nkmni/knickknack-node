@@ -288,6 +288,7 @@ export class Peer {
     }
   }
   async onMessageGetMempool(msg: GetMempoolMessageType) {
+    this.warn("Inside getMempool");
     this.sendMempool();
   }
   async onMessageMempool(msg: MempoolMessageType) {
