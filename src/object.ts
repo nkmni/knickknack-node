@@ -67,7 +67,7 @@ class ObjectManager {
         const tx: Transaction = Transaction.fromNetworkObject(obj);
         logger.debug(`Validating transaction: ${tx.txid}`);
         await tx.validate();
-        // Newly added for PSET 5
+        // update mempool with transaction
         await mempoolManager.updateMempoolTx(tx, peer);
         return tx;
       },

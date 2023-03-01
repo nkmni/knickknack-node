@@ -20,13 +20,15 @@ class MempoolManager {
   // txids for the current mempool
   txids: String[] = [];
 
-  async init() {
-    this.utxo = chainManager.longestChainTip!.stateAfter!;
-    for (const outpoint of this.utxo.outpoints) {
-        this.txids.push(JSON.parse(outpoint).txid)
+  // on init, set utxo to longest chain tip's, populate txids
+  async init() { 
+    if (chainManager.longestChainTip !== null) {
+        this.utxo = chainManager.longestChainTip!.stateAfter!;
+        for (const outpoint of this.utxo.outpoints) {
+            this.txids.push(JSON.parse(outpoint).txid)
+        }
     }
   }
-
   async updateMempoolTx(tx: Transaction, peer: Peer) {
     try {
         this.utxo.apply(tx);

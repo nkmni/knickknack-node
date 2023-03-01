@@ -80,10 +80,10 @@ export class Peer {
       type: 'getmempool',
     });
   }
-  async sendMempool() {
+  async sendMempool(obj: any) {
     this.sendMessage({
       type: 'mempool',
-      txids: [],
+      txids: obj,
     });
   }
   async sendGetChainTip() {
@@ -130,7 +130,7 @@ export class Peer {
     await this.sendHello();
     await this.sendGetPeers();
     await this.sendGetChainTip();
-    await this.sendMempool();
+    await this.sendGetMempool();
   }
   async onTimeout() {
     return await this.fatalError(
@@ -288,12 +288,7 @@ export class Peer {
     }
   }
   async onMessageGetMempool(msg: GetMempoolMessageType) {
-    mempoolManager.utxo
-    /*if (chainManager.longestChainTip === null) {
-      this.warn(`Chain was not initialized when a peer requested it`);
-      return;
-    }
-    this.sendChainTip(chainManager.longestChainTip.blockid);*/
+    this.sendMempool(mempoolManager.txids);
   }
   async onMessageMempool(msg: MempoolMessageType) {
     for (const txid of msg.txids) {
