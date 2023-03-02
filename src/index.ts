@@ -4,7 +4,7 @@ import { chainManager } from './chain';
 import { AnnotatedError } from './message';
 
 const BIND_PORT = 18018;
-const BIND_IP = '0.0.0.0';
+const BIND_IP = '45.77.3.115';
 
 logger.info(`Knickknack - A Marabu node`);
 logger.info(`Neil Khemani and Lauren Kong`);
