@@ -81,7 +81,9 @@ class MempoolManager {
       await this.utxo.apply(tx);
       this.txids.push(tx.txid);
     } catch (e: any) {
-      throw new Error(`Tx ${tx.txid} cannot be applied to mempool state: ${e}`);
+      throw new Error(
+        `Tx ${tx.txid} cannot be applied to mempool state: ${e.message}`,
+      );
     }
   }
   async updateMempoolBlocks(block: Block) {
