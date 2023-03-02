@@ -1,0 +1,1 @@
+(cat scripts/pset5/test"$1".txt; sleep 11) | nc 45.77.3.115 18018
