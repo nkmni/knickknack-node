@@ -104,7 +104,9 @@ class MempoolManager {
     // remove conflicting txs
     for (let txid of this.txids) {
       for (const tx of blockTxs) {
-        const oldMempoolTx = (await objectManager.get(txid)) as Transaction;
+        const oldMempoolTx = Transaction.fromNetworkObject(
+          await objectManager.get(txid),
+        );
         if (oldMempoolTx.conflictsWith(tx)) {
           const index = this.txids.indexOf(txid);
           this.txids.splice(index, 1);
@@ -150,7 +152,7 @@ class MempoolManager {
       );
       const oldBlockTxs = await oldBlock.getTxs();
       for (const oldBlockTx of oldBlockTxs) {
-        this.updateMempoolTx(oldBlockTx);
+        await this.updateMempoolTx(oldBlockTx);
       }
     }
 
@@ -158,7 +160,7 @@ class MempoolManager {
       const oldMempoolTx = await Transaction.fromNetworkObject(
         await objectManager.get(oldMempoolTxid),
       );
-      this.updateMempoolTx(oldMempoolTx);
+      await this.updateMempoolTx(oldMempoolTx);
     }
 
     // // Set your mempool UTXO set equal to the UTXO set of the chain tip of the new chain.
