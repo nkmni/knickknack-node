@@ -24,55 +24,65 @@ class MempoolManager {
   deferredInit: Deferred<boolean> | undefined = undefined;
 
   // on init, set utxo to longest chain tip's, populate txids
-  async init(blockid: string, peer: Peer) {
-    logger.log('debug', `mempoolManager(${blockid}): init`);
-    while (this.deferredInit !== undefined) {
-      logger.log(
-        'debug',
-        `mempoolManager(${blockid}): deferredInit !== undefined`,
-      );
-      const alreadyInitialized = await this.deferredInit.promise;
-      logger.log('debug', `mempoolManager(${blockid}): deferredInit awaited`);
-      if (this.initialized) {
-        logger.log(
-          'debug',
-          `mempoolManager(${blockid}): initialized; returning...`,
-        );
-        return;
-      }
+  //   async init(blockid: string, peer: Peer) {
+  //     logger.log('debug', `mempoolManager(${blockid}): init`);
+  //     while (this.deferredInit !== undefined) {
+  //       logger.log(
+  //         'debug',
+  //         `mempoolManager(${blockid}): deferredInit !== undefined`,
+  //       );
+  //       const alreadyInitialized = await this.deferredInit.promise;
+  //       logger.log('debug', `mempoolManager(${blockid}): deferredInit awaited`);
+  //       if (this.initialized) {
+  //         logger.log(
+  //           'debug',
+  //           `mempoolManager(${blockid}): initialized; returning...`,
+  //         );
+  //         return;
+  //       }
+  //     }
+  //     this.deferredInit = new Deferred<boolean>();
+  //     logger.log(
+  //       'debug',
+  //       `mempoolManager(${blockid}): created promise. retrieving...`,
+  //     );
+  //     const blockObj = await objectManager.retrieve(blockid, peer);
+  //     logger.log('debug', `mempoolManager(${blockid}): retrieved`);
+  //     if (!BlockObject.guard(blockObj)) {
+  //       logger.log('debug', `mempoolManager(${blockid}): invalid block object`);
+  //       peer.sendError(
+  //         new AnnotatedError(
+  //           'INVALID_FORMAT',
+  //           'Received chaintip is not a block',
+  //         ),
+  //       );
+  //       this.deferredInit.resolve(false);
+  //       this.deferredInit = undefined;
+  //       return;
+  //     }
+  //     const chainTip = await Block.fromNetworkObject(blockObj);
+  //     this.utxo = chainTip.stateAfter!;
+  //     this.initialized = true;
+  //     this.deferredInit.resolve(true);
+  //     this.deferredInit = undefined;
+  //     logger.log('debug', `mempoolManager(${blockid}): success!`);
+  //   }
+
+  async init() {
+    logger.log('debug', 'mempoolManager init');
+    if (chainManager.longestChainTip !== null) {
+      this.utxo = chainManager.longestChainTip!.stateAfter!;
     }
-    this.deferredInit = new Deferred<boolean>();
-    logger.log(
-      'debug',
-      `mempoolManager(${blockid}): created promise. retrieving...`,
-    );
-    const blockObj = await objectManager.retrieve(blockid, peer);
-    logger.log('debug', `mempoolManager(${blockid}): retrieved`);
-    if (!BlockObject.guard(blockObj)) {
-      logger.log('debug', `mempoolManager(${blockid}): invalid block object`);
-      peer.sendError(
-        new AnnotatedError(
-          'INVALID_FORMAT',
-          'Received chaintip is not a block',
-        ),
-      );
-      this.deferredInit.resolve(false);
-      this.deferredInit = undefined;
-      return;
-    }
-    const chainTip = await Block.fromNetworkObject(blockObj);
-    this.utxo = chainTip.stateAfter!;
     this.initialized = true;
-    this.deferredInit.resolve(true);
-    this.deferredInit = undefined;
-    logger.log('debug', `mempoolManager(${blockid}): success!`);
   }
   async updateMempoolTx(tx: Transaction) {
     if (!this.initialized) return;
     try {
       await this.utxo.apply(tx);
       this.txids.push(tx.txid);
-    } catch {}
+    } catch (e: any) {
+      throw new Error(`Tx ${tx.txid} cannot be applied to mempool state: ${e}`);
+    }
   }
   async updateMempoolBlocks(block: Block) {
     if (!this.initialized) return;

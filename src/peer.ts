@@ -310,9 +310,9 @@ export class Peer {
     if (!(await objectManager.exists(msg.blockid))) {
       this.sendGetObject(msg.blockid);
     }
-    if (!mempoolManager.initialized) {
-      await mempoolManager.init(msg.blockid, this);
-    }
+    // if (!mempoolManager.initialized) {
+    //   await mempoolManager.init(msg.blockid, this);
+    // }
   }
   async onMessageError(msg: ErrorMessageType) {
     this.warn(`Peer reported error: ${msg.name}`);

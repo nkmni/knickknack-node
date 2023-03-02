@@ -68,7 +68,11 @@ class ObjectManager {
         logger.debug(`Validating transaction: ${tx.txid}`);
         await tx.validate();
         // update mempool with transaction
+        logger.debug(`objectManager.validate: updating mempool with tx...`);
         await mempoolManager.updateMempoolTx(tx);
+        logger.debug(
+          `objectManager.validate: finished updating mempool with tx`,
+        );
         return tx;
       },
       async (obj: BlockObjectType) => {
