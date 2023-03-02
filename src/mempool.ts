@@ -25,16 +25,31 @@ class MempoolManager {
 
   // on init, set utxo to longest chain tip's, populate txids
   async init(blockid: string, peer: Peer) {
-    logger.log('debug', 'mempoolManager init');
+    logger.log('debug', `mempoolManager(${blockid}): init`);
     while (this.deferredInit !== undefined) {
+      logger.log(
+        'debug',
+        `mempoolManager(${blockid}): deferredInit !== undefined`,
+      );
       const alreadyInitialized = await this.deferredInit.promise;
+      logger.log('debug', `mempoolManager(${blockid}): deferredInit awaited`);
       if (this.initialized) {
+        logger.log(
+          'debug',
+          `mempoolManager(${blockid}): initialized; returning...`,
+        );
         return;
       }
     }
     this.deferredInit = new Deferred<boolean>();
+    logger.log(
+      'debug',
+      `mempoolManager(${blockid}): created promise. retrieving...`,
+    );
     const blockObj = await objectManager.retrieve(blockid, peer);
+    logger.log('debug', `mempoolManager(${blockid}): retrieved`);
     if (!BlockObject.guard(blockObj)) {
+      logger.log('debug', `mempoolManager(${blockid}): invalid block object`);
       peer.sendError(
         new AnnotatedError(
           'INVALID_FORMAT',
@@ -50,6 +65,7 @@ class MempoolManager {
     this.initialized = true;
     this.deferredInit.resolve(true);
     this.deferredInit = undefined;
+    logger.log('debug', `mempoolManager(${blockid}): success!`);
   }
   async updateMempoolTx(tx: Transaction) {
     if (!this.initialized) return;
