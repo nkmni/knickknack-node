@@ -1,5 +1,7 @@
 import { Block } from './block';
 import { logger } from './logger';
+import { mempoolManager } from './mempool';
+import { Peer } from './peer';
 
 class ChainManager {
   longestChainHeight: number = 0;
@@ -8,7 +10,7 @@ class ChainManager {
   async init() {
     this.longestChainTip = await Block.makeGenesis();
   }
-  async onValidBlockArrival(block: Block) {
+  async onValidBlockArrival(block: Block, peer: Peer) {
     if (!block.valid) {
       throw new Error(
         `Received onValidBlockArrival() call for invalid block ${block.blockid}`,
@@ -28,6 +30,14 @@ class ChainManager {
       logger.debug(
         `New longest chain has height ${height} and tip ${block.blockid}`,
       );
+      // Mempool Update
+      if (await this.longestChainTip.isInPrefixOf(block)) {
+        // adding to existing longest chain
+        await mempoolManager.updateMempoolBlocks(block);
+      } else {
+        // reorg needed
+        await mempoolManager.chainReorg(block, peer);
+      }
       this.longestChainHeight = height;
       this.longestChainTip = block;
     }

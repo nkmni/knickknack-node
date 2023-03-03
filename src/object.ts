@@ -15,6 +15,7 @@ import { logger } from './logger';
 import { hash } from './crypto/hash';
 import { Peer } from './peer';
 import { Deferred, delay, resolveToReject } from './promise';
+import { mempoolManager } from './mempool';
 
 export const db = new level('./db');
 const OBJECT_AVAILABILITY_TIMEOUT = 5000; // ms
@@ -66,12 +67,19 @@ class ObjectManager {
         const tx: Transaction = Transaction.fromNetworkObject(obj);
         logger.debug(`Validating transaction: ${tx.txid}`);
         await tx.validate();
+        // update mempool with transaction
+        logger.debug(`objectManager.validate: updating mempool with tx...`);
+        await mempoolManager.updateMempoolTx(tx);
+        logger.debug(
+          `objectManager.validate: finished updating mempool with tx`,
+        );
         return tx;
       },
       async (obj: BlockObjectType) => {
         const block = await Block.fromNetworkObject(obj);
         logger.debug(`Validating block: ${block.blockid}`);
         await block.validate(peer);
+        // 'adding to mempool' done inside block validation (chain)
         return block;
       },
     )(object);

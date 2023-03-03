@@ -10,6 +10,8 @@ import {
   IHaveObjectMessageType,
   GetObjectMessageType,
   ObjectMessageType,
+  GetMempoolMessageType,
+  MempoolMessageType,
   GetChainTipMessageType,
   ChainTipMessageType,
   ErrorMessageType,
@@ -23,6 +25,7 @@ import { ObjectId } from './object';
 import { chainManager } from './chain';
 import { Block } from './block';
 import { Transaction } from './transaction';
+import { mempoolManager } from './mempool';
 
 const VERSION = '0.9.0';
 const NAME = 'Malibu (pset4)';
@@ -72,6 +75,17 @@ export class Peer {
       objectid: objid,
     });
   }
+  async sendGetMempool() {
+    this.sendMessage({
+      type: 'getmempool',
+    });
+  }
+  async sendMempool() {
+    this.sendMessage({
+      type: 'mempool',
+      txids: [...mempoolManager.txids],
+    });
+  }
   async sendGetChainTip() {
     this.sendMessage({
       type: 'getchaintip',
@@ -116,6 +130,7 @@ export class Peer {
     await this.sendHello();
     await this.sendGetPeers();
     await this.sendGetChainTip();
+    await this.sendGetMempool();
   }
   async onTimeout() {
     return await this.fatalError(
@@ -176,6 +191,8 @@ export class Peer {
       this.onMessageIHaveObject.bind(this),
       this.onMessageGetObject.bind(this),
       this.onMessageObject.bind(this),
+      this.onMessageGetMempool.bind(this),
+      this.onMessageMempool.bind(this),
       this.onMessageGetChainTip.bind(this),
       this.onMessageChainTip.bind(this),
       this.onMessageError.bind(this),
@@ -270,6 +287,18 @@ export class Peer {
       });
     }
   }
+  async onMessageGetMempool(msg: GetMempoolMessageType) {
+    this.warn('Inside getMempool');
+    this.sendMempool();
+  }
+  async onMessageMempool(msg: MempoolMessageType) {
+    for (const txid of msg.txids) {
+      if (await objectManager.exists(txid)) {
+        continue;
+      }
+      this.sendGetObject(txid);
+    }
+  }
   async onMessageGetChainTip(msg: GetChainTipMessageType) {
     if (chainManager.longestChainTip === null) {
       this.warn(`Chain was not initialized when a peer requested it`);
@@ -278,10 +307,12 @@ export class Peer {
     this.sendChainTip(chainManager.longestChainTip.blockid);
   }
   async onMessageChainTip(msg: ChainTipMessageType) {
-    if (await objectManager.exists(msg.blockid)) {
-      return;
+    if (!(await objectManager.exists(msg.blockid))) {
+      this.sendGetObject(msg.blockid);
     }
-    this.sendGetObject(msg.blockid);
+    // if (!mempoolManager.initialized) {
+    //   await mempoolManager.init(msg.blockid, this);
+    // }
   }
   async onMessageError(msg: ErrorMessageType) {
     this.warn(`Peer reported error: ${msg.name}`);
