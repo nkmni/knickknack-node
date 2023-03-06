@@ -3,7 +3,6 @@ import { logger } from './logger';
 import { Peer } from './peer';
 import { EventEmitter } from 'events';
 import { peerManager } from './peermanager';
-import { mempoolManager } from './mempool';
 
 const TIMEOUT_DELAY = 10000; // 10 seconds
 const MAX_BUFFER_SIZE = 100 * 1024; // 100 kB
@@ -13,7 +12,6 @@ class Network {
 
   async init(bindPort: number, bindIP: string) {
     await peerManager.load();
-    await mempoolManager.init();
 
     const server = net.createServer(socket => {
       logger.info(`New connection from peer ${socket.remoteAddress}`);

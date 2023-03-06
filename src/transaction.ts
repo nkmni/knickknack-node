@@ -56,11 +56,6 @@ export class Outpoint {
     }
     return refTx.outputs[this.index];
   }
-  equals(otherOutpoint: Outpoint): boolean {
-    return (
-      this.txid === otherOutpoint.txid && this.index === otherOutpoint.index
-    );
-  }
   toNetworkObject(): OutpointObjectType {
     return {
       txid: this.txid,
@@ -199,23 +194,9 @@ export class Transaction {
           );
         }
 
-        return [prevOutput.value, input.outpoint];
+        return prevOutput.value;
       }),
     );
-
-    for (let i = 0; i < inputValues.length; ++i) {
-      for (let j = i + 1; j < inputValues.length; ++j) {
-        if (
-          (inputValues[i][1] as Outpoint).equals(inputValues[j][1] as Outpoint)
-        ) {
-          throw new AnnotatedError(
-            'INVALID_TX_OUTPOINT',
-            `Transaction ${this.txid} contains 2 inputs with the same outpoint`,
-          );
-        }
-      }
-    }
-
     let sumInputs = 0;
     let sumOutputs = 0;
 
@@ -223,7 +204,7 @@ export class Transaction {
       `Checking the law of conservation for transaction ${this.txid}`,
     );
     for (const inputValue of inputValues) {
-      sumInputs += inputValue[0] as number;
+      sumInputs += inputValue;
     }
     logger.debug(`Sum of inputs is ${sumInputs}`);
     for (const output of this.outputs) {
@@ -239,16 +220,6 @@ export class Transaction {
     this.fees = sumInputs - sumOutputs;
     logger.debug(`Transaction ${this.txid} pays fees ${this.fees}`);
     logger.debug(`Transaction ${this.txid} is valid`);
-  }
-  conflictsWith(otherTx: Transaction): boolean {
-    for (const input of this.inputs) {
-      for (const otherInput of otherTx.inputs) {
-        if (input.outpoint.equals(otherInput.outpoint)) {
-          return true;
-        }
-      }
-    }
-    return false;
   }
   inputsUnsigned() {
     return this.inputs.map(input => input.toUnsigned().toNetworkObject());

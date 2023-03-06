@@ -15,7 +15,9 @@ import { logger } from './logger';
 const Hash = String.withConstraint(s => /^[0-9a-f]{64}$/.test(s));
 const Sig = String.withConstraint(s => /^[0-9a-f]{128}$/.test(s));
 const PK = String.withConstraint(s => /^[0-9a-f]{64}$/.test(s));
-const NonNegative = Number.withConstraint(n => n >= 0);
+const NonNegative = Number.withConstraint(
+  n => n >= 0 && global.Number.isInteger(n),
+);
 const Coins = NonNegative;
 const ErrorChoices = Union(
   Literal('INTERNAL_ERROR'),
@@ -110,7 +112,7 @@ export const BlockObject = Record({
   txids: Array(Hash),
   nonce: String,
   previd: Union(Hash, Null),
-  created: Number,
+  created: NonNegative,
   T: Hash,
   miner: Optional(HumanReadable),
   note: Optional(HumanReadable),
@@ -157,17 +159,6 @@ export const ObjectMessage = Record({
 });
 export type ObjectMessageType = Static<typeof ObjectMessage>;
 
-export const GetMempoolMessage = Record({
-  type: Literal('getmempool'),
-});
-export type GetMempoolMessageType = Static<typeof GetMempoolMessage>;
-
-export const MempoolMessage = Record({
-  type: Literal('mempool'),
-  txids: Array(Hash),
-});
-export type MempoolMessageType = Static<typeof MempoolMessage>;
-
 export const GetChainTipMessage = Record({
   type: Literal('getchaintip'),
 });
@@ -179,6 +170,17 @@ export const ChainTipMessage = Record({
 });
 export type ChainTipMessageType = Static<typeof ChainTipMessage>;
 
+export const GetMempoolMessage = Record({
+  type: Literal('getmempool'),
+});
+export type GetMemPoolMessageType = Static<typeof GetMempoolMessage>;
+
+export const MempoolMessage = Record({
+  type: Literal('mempool'),
+  txids: Array(String),
+});
+export type MempoolMessageType = Static<typeof MempoolMessage>;
+
 export const Messages = [
   HelloMessage,
   GetPeersMessage,
@@ -186,10 +188,10 @@ export const Messages = [
   IHaveObjectMessage,
   GetObjectMessage,
   ObjectMessage,
-  GetMempoolMessage,
-  MempoolMessage,
   GetChainTipMessage,
   ChainTipMessage,
+  GetMempoolMessage,
+  MempoolMessage,
   ErrorMessage,
 ];
 export const Message = Union(
@@ -199,10 +201,10 @@ export const Message = Union(
   IHaveObjectMessage,
   GetObjectMessage,
   ObjectMessage,
-  GetMempoolMessage,
-  MempoolMessage,
   GetChainTipMessage,
   ChainTipMessage,
+  GetMempoolMessage,
+  MempoolMessage,
   ErrorMessage,
 );
 export type MessageType = Static<typeof Message>;

@@ -245,6 +245,24 @@ export class Block {
       )}`,
     );
   }
+  async loadParent(): Promise<Block | null> {
+    let parentBlock: Block;
+
+    if (this.previd === null) {
+      return null;
+    }
+    try {
+      const parentObject = await objectManager.get(this.previd);
+
+      if (!BlockObject.guard(parentObject)) {
+        return null;
+      }
+      parentBlock = await Block.fromNetworkObject(parentObject);
+    } catch (e: any) {
+      return null;
+    }
+    return parentBlock;
+  }
   async validateAncestry(peer: Peer): Promise<Block | null> {
     if (this.previd === null) {
       // genesis
@@ -287,23 +305,6 @@ export class Block {
     }
     return parentBlock;
   }
-  isAscii(str: string | undefined) {
-    if (str === undefined) return true;
-    return /^[\x00-\x7F]*$/.test(str);
-  }
-  hasValidStudentIds(): boolean {
-    if (this.studentids === undefined) return true;
-    if (this.studentids.length > 10) return false;
-    for (const studentid of this.studentids) {
-      if (!this.isAscii(studentid)) {
-        return false;
-      }
-      if (studentid.length > 128) {
-        return false;
-      }
-    }
-    return true;
-  }
   async validate(peer: Peer) {
     logger.debug(`Validating block ${this.blockid}`);
 
@@ -340,18 +341,6 @@ export class Block {
         );
       }
       logger.debug(`Block proof-of-work for ${this.blockid} is valid`);
-      if (!this.isAscii(this.note) || !this.isAscii(this.miner)) {
-        throw new AnnotatedError(
-          'INVALID_FORMAT',
-          `Block ${this.blockid} has miner or note field that contains non-ascii chars`,
-        );
-      }
-      if (!this.hasValidStudentIds()) {
-        throw new AnnotatedError(
-          'INVALID_FORMAT',
-          `Block ${this.blockid} has invalid studentids field`,
-        );
-      }
 
       let parentBlock: Block | null = null;
       let stateBefore: UTXOSet | undefined;
@@ -432,7 +421,7 @@ export class Block {
       this.valid = true;
       try {
         await this.save();
-        await chainManager.onValidBlockArrival(this, peer);
+        await chainManager.onValidBlockArrival(this);
       } catch (e: any) {
         throw new AnnotatedError(
           'INTERNAL_ERROR',
@@ -472,20 +461,5 @@ export class Block {
     this.height = height;
     this.stateAfter = new UTXOSet(new Set<string>(stateAfterOutpoints));
     this.valid = true;
-  }
-  async isInPrefixOf(otherBlock: Block): Promise<boolean> {
-    if (this.height === undefined || otherBlock.height === undefined) {
-      throw new Error('isInPrefixOf: undefined height encountered');
-    }
-    if (this.height === 0) return true;
-    if (otherBlock.height < this.height) return false;
-    let currentHeight = otherBlock.height;
-    while (currentHeight > this.height) {
-      otherBlock = await Block.fromNetworkObject(
-        await objectManager.get(otherBlock.previd!),
-      );
-      --currentHeight;
-    }
-    return this.blockid === otherBlock.blockid;
   }
 }

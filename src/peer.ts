@@ -2,33 +2,43 @@ import { logger } from './logger';
 import { MessageSocket } from './network';
 import semver from 'semver';
 import {
+  Messages,
   Message,
   HelloMessage,
+  PeersMessage,
+  GetPeersMessage,
+  IHaveObjectMessage,
+  GetObjectMessage,
+  ObjectMessage,
+  GetChainTipMessage,
+  ChainTipMessage,
+  ErrorMessage,
+  MessageType,
   HelloMessageType,
   PeersMessageType,
   GetPeersMessageType,
   IHaveObjectMessageType,
   GetObjectMessageType,
   ObjectMessageType,
-  GetMempoolMessageType,
-  MempoolMessageType,
   GetChainTipMessageType,
   ChainTipMessageType,
   ErrorMessageType,
+  GetMemPoolMessageType,
+  MempoolMessageType,
   AnnotatedError,
 } from './message';
 import { peerManager } from './peermanager';
 import { canonicalize } from 'json-canonicalize';
-import { objectManager } from './object';
+import { db, objectManager } from './object';
 import { network } from './network';
 import { ObjectId } from './object';
 import { chainManager } from './chain';
+import { mempool } from './mempool';
 import { Block } from './block';
 import { Transaction } from './transaction';
-import { mempoolManager } from './mempool';
 
 const VERSION = '0.9.0';
-const NAME = 'Malibu (pset4)';
+const NAME = 'Malibu (pset5)';
 
 // Number of peers that each peer is allowed to report to us
 const MAX_PEERS_PER_PEER = 30;
@@ -75,17 +85,6 @@ export class Peer {
       objectid: objid,
     });
   }
-  async sendGetMempool() {
-    this.sendMessage({
-      type: 'getmempool',
-    });
-  }
-  async sendMempool() {
-    this.sendMessage({
-      type: 'mempool',
-      txids: [...mempoolManager.txids],
-    });
-  }
   async sendGetChainTip() {
     this.sendMessage({
       type: 'getchaintip',
@@ -95,6 +94,17 @@ export class Peer {
     this.sendMessage({
       type: 'chaintip',
       blockid,
+    });
+  }
+  async sendGetMempool() {
+    this.sendMessage({
+      type: 'getmempool',
+    });
+  }
+  async sendMempool(txids: ObjectId[]) {
+    this.sendMessage({
+      type: 'mempool',
+      txids,
     });
   }
   async sendError(err: AnnotatedError) {
@@ -191,10 +201,10 @@ export class Peer {
       this.onMessageIHaveObject.bind(this),
       this.onMessageGetObject.bind(this),
       this.onMessageObject.bind(this),
-      this.onMessageGetMempool.bind(this),
-      this.onMessageMempool.bind(this),
       this.onMessageGetChainTip.bind(this),
       this.onMessageChainTip.bind(this),
+      this.onMessageGetMempool.bind(this),
+      this.onMessageMempool.bind(this),
       this.onMessageError.bind(this),
     )(msg);
   }
@@ -287,18 +297,6 @@ export class Peer {
       });
     }
   }
-  async onMessageGetMempool(msg: GetMempoolMessageType) {
-    this.warn('Inside getMempool');
-    this.sendMempool();
-  }
-  async onMessageMempool(msg: MempoolMessageType) {
-    for (const txid of msg.txids) {
-      if (await objectManager.exists(txid)) {
-        continue;
-      }
-      this.sendGetObject(txid);
-    }
-  }
   async onMessageGetChainTip(msg: GetChainTipMessageType) {
     if (chainManager.longestChainTip === null) {
       this.warn(`Chain was not initialized when a peer requested it`);
@@ -307,12 +305,23 @@ export class Peer {
     this.sendChainTip(chainManager.longestChainTip.blockid);
   }
   async onMessageChainTip(msg: ChainTipMessageType) {
-    if (!(await objectManager.exists(msg.blockid))) {
-      this.sendGetObject(msg.blockid);
+    if (await objectManager.exists(msg.blockid)) {
+      return;
     }
-    // if (!mempoolManager.initialized) {
-    //   await mempoolManager.init(msg.blockid, this);
-    // }
+    this.sendGetObject(msg.blockid);
+  }
+  async onMessageGetMempool(msg: GetMemPoolMessageType) {
+    const txids = [];
+
+    for (const tx of mempool.txs) {
+      txids.push(tx.txid);
+    }
+    this.sendMempool(txids);
+  }
+  async onMessageMempool(msg: MempoolMessageType) {
+    for (const txid of msg.txids) {
+      objectManager.retrieve(txid, this); // intentionally delayed
+    }
   }
   async onMessageError(msg: ErrorMessageType) {
     this.warn(`Peer reported error: ${msg.name}`);

@@ -1,206 +1,119 @@
 import { Block } from './block';
+import { Chain } from './chain';
 import { logger } from './logger';
-import { db } from './object';
-import { chainManager } from './chain';
+import { AnnotatedError } from './message';
+import { db, ObjectId, objectManager } from './object';
+import { Transaction } from './transaction';
 import { UTXOSet } from './utxo';
-import { objectManager } from './object';
-import { Outpoint, Transaction } from './transaction';
-import { Peer } from './peer';
-import {
-  BlockObject,
-  BlockObjectType,
-  TransactionObject,
-  ObjectType,
-  AnnotatedError,
-  ErrorChoice,
-} from './message';
-import { Deferred } from './promise';
 
-class MempoolManager {
-  utxo: UTXOSet = new UTXOSet(new Set<string>());
-  // txids for the current mempool
-  txids: string[] = [];
-  initialized: boolean = false;
-  deferredInit: Deferred<boolean> | undefined = undefined;
-
-  // on init, set utxo to longest chain tip's, populate txids
-  //   async init(blockid: string, peer: Peer) {
-  //     logger.log('debug', `mempoolManager(${blockid}): init`);
-  //     while (this.deferredInit !== undefined) {
-  //       logger.log(
-  //         'debug',
-  //         `mempoolManager(${blockid}): deferredInit !== undefined`,
-  //       );
-  //       const alreadyInitialized = await this.deferredInit.promise;
-  //       logger.log('debug', `mempoolManager(${blockid}): deferredInit awaited`);
-  //       if (this.initialized) {
-  //         logger.log(
-  //           'debug',
-  //           `mempoolManager(${blockid}): initialized; returning...`,
-  //         );
-  //         return;
-  //       }
-  //     }
-  //     this.deferredInit = new Deferred<boolean>();
-  //     logger.log(
-  //       'debug',
-  //       `mempoolManager(${blockid}): created promise. retrieving...`,
-  //     );
-  //     const blockObj = await objectManager.retrieve(blockid, peer);
-  //     logger.log('debug', `mempoolManager(${blockid}): retrieved`);
-  //     if (!BlockObject.guard(blockObj)) {
-  //       logger.log('debug', `mempoolManager(${blockid}): invalid block object`);
-  //       peer.sendError(
-  //         new AnnotatedError(
-  //           'INVALID_FORMAT',
-  //           'Received chaintip is not a block',
-  //         ),
-  //       );
-  //       this.deferredInit.resolve(false);
-  //       this.deferredInit = undefined;
-  //       return;
-  //     }
-  //     const chainTip = await Block.fromNetworkObject(blockObj);
-  //     this.utxo = chainTip.stateAfter!;
-  //     this.initialized = true;
-  //     this.deferredInit.resolve(true);
-  //     this.deferredInit = undefined;
-  //     logger.log('debug', `mempoolManager(${blockid}): success!`);
-  //   }
+class MemPool {
+  txs: Transaction[] = [];
+  state: UTXOSet | undefined;
 
   async init() {
-    logger.log('debug', 'mempoolManager init');
-    if (chainManager.longestChainTip !== null) {
-      this.utxo = chainManager.longestChainTip!.stateAfter!;
-    }
-    this.initialized = true;
+    await this.load();
+    logger.debug('Mempool initialized');
   }
-  async updateMempoolTx(tx: Transaction) {
-    if (!this.initialized) return;
+  getTxIds(): ObjectId[] {
+    const txids = this.txs.map(tx => tx.txid);
+
+    logger.debug(`Mempool txids: ${txids}`);
+
+    return txids;
+  }
+  async fromTxIds(txids: ObjectId[]) {
+    this.txs = [];
+
+    for (const txid of txids) {
+      this.txs.push(
+        Transaction.fromNetworkObject(await objectManager.get(txid)),
+      );
+    }
+  }
+  async save() {
+    if (this.state === undefined) {
+      throw new AnnotatedError(
+        'INTERNAL_ERROR',
+        'Could not save undefined state of mempool to cache.',
+      );
+    }
+    await db.put('mempool:txids', this.getTxIds());
+    await db.put('mempool:state', Array.from(this.state.outpoints));
+  }
+  async load() {
     try {
-      await this.utxo.apply(tx);
-      this.txids.push(tx.txid);
+      const txids = await db.get('mempool:txids');
+      logger.debug(`Retrieved cached mempool: ${txids}.`);
+      this.fromTxIds(txids);
+    } catch {
+      // start with an empty mempool of no transactions
+    }
+    try {
+      logger.debug(`Loading mempool state from cache`);
+      const outpoints = await db.get('mempool:state');
+      logger.debug(`Outpoints loaded from cache: ${outpoints}`);
+      this.state = new UTXOSet(new Set<string>(outpoints));
+    } catch {
+      // start with an empty state
+      this.state = new UTXOSet(new Set());
+    }
+  }
+  async onTransactionArrival(tx: Transaction): Promise<boolean> {
+    try {
+      await this.state?.apply(tx);
     } catch (e: any) {
-      throw new Error(
-        `Tx ${tx.txid} cannot be applied to mempool state: ${e.message}`,
+      // failed to apply transaction to mempool, ignore it
+      logger.debug(
+        `Failed to add transaction ${tx.txid} to mempool: ${e.message}.`,
       );
+      return false;
     }
+    logger.debug(`Added transaction ${tx.txid} to mempool`);
+    this.txs.push(tx);
+    await this.save();
+    return true;
   }
-  async updateMempoolBlocks(block: Block) {
-    if (!this.initialized) return;
-    let newSuffix: Block[] = [];
-    let currentBlock = block;
-    while (currentBlock.blockid !== chainManager.longestChainTip!.blockid) {
-      newSuffix.unshift(currentBlock);
-      currentBlock = await Block.fromNetworkObject(
-        await objectManager.get(currentBlock.previd!),
-      );
-    }
-    for (const b of newSuffix) {
-      await this.updateMempoolBlock(b);
-    }
-  }
-  async updateMempoolBlock(block: Block) {
-    if (!this.initialized) return;
+  async reorg(lca: Block, shortFork: Chain, longFork: Chain) {
+    logger.info('Reorganizing mempool due to longer chain adoption.');
 
-    const blockTxs = await block.getTxs();
-    for (const tx of blockTxs) {
-      // remove from mempool
-      const index = this.txids.indexOf(tx.txid);
-      if (index > -1) {
-        this.txids.splice(index, 1);
-      }
-      // updating mempool state
-      await this.utxo.apply(tx);
-    }
-    // remove conflicting txs
-    for (let txid of this.txids) {
-      for (const tx of blockTxs) {
-        const oldMempoolTx = Transaction.fromNetworkObject(
-          await objectManager.get(txid),
-        );
-        if (oldMempoolTx.conflictsWith(tx)) {
-          const index = this.txids.indexOf(txid);
-          this.txids.splice(index, 1);
-        }
-      }
-    }
-  }
-  async chainReorg(newTip: Block, peer: Peer) {
-    if (!this.initialized) return;
+    const oldMempoolTxs: Transaction[] = this.txs;
+    let orphanedTxs: Transaction[] = [];
 
-    const oldTxids = [...this.txids];
-    this.utxo = newTip.stateAfter!;
-
-    let oldTip = chainManager.longestChainTip!;
-    let oldParent = oldTip.previd;
-    let newParent = newTip.previd;
-    let oldChain: Array<string | null> = [oldTip.blockid];
-    let newChain: Array<string | null> = [newTip.blockid];
-    let intersection: Array<string | null> = oldChain.filter(blockid =>
-      newChain.includes(blockid),
+    for (const block of shortFork.blocks) {
+      orphanedTxs = orphanedTxs.concat(await block.getTxs());
+    }
+    logger.info(
+      `Old mempool had ${oldMempoolTxs.length} transaction(s): ${oldMempoolTxs}`,
     );
+    logger.info(
+      `${orphanedTxs.length} transaction(s) in ${shortFork.blocks.length} block(s) were orphaned: ${orphanedTxs}`,
+    );
+    orphanedTxs = orphanedTxs.concat(oldMempoolTxs);
 
-    while (intersection.length === 0) {
-      if (oldParent !== null) {
-        oldChain.unshift(oldParent);
-        oldParent = (
-          await Block.fromNetworkObject(await objectManager.get(oldParent))
-        ).previd;
-      }
-      if (newParent !== null) {
-        newChain.unshift(newParent);
-        newParent = (
-          await Block.fromNetworkObject(await objectManager.get(newParent))
-        ).previd;
-      }
-      intersection = oldChain.filter(blockid => newChain.includes(blockid));
-    }
+    this.txs = [];
 
-    const commonAncestorIndex = oldChain.indexOf(intersection[0]);
-    for (let i = commonAncestorIndex + 1; i < oldChain.length; ++i) {
-      const oldBlock = await Block.fromNetworkObject(
-        await objectManager.get(oldChain[i]!),
+    const tip = longFork.blocks[longFork.blocks.length - 1];
+    if (tip.stateAfter === undefined) {
+      throw new Error(
+        `Attempted a mempool reorg with tip ${tip.blockid} for which no state has been calculted.`,
       );
-      const oldBlockTxs = await oldBlock.getTxs();
-      for (const oldBlockTx of oldBlockTxs) {
-        await this.updateMempoolTx(oldBlockTx);
+    }
+    this.state = tip.stateAfter;
+
+    let successes = 0;
+    for (const tx of orphanedTxs) {
+      const success = await this.onTransactionArrival(tx);
+
+      if (success) {
+        ++successes;
       }
     }
-
-    for (const oldMempoolTxid of oldTxids) {
-      const oldMempoolTx = await Transaction.fromNetworkObject(
-        await objectManager.get(oldMempoolTxid),
-      );
-      await this.updateMempoolTx(oldMempoolTx);
-    }
-
-    // // Set your mempool UTXO set equal to the UTXO set of the chain tip of the new chain.
-    // const oldUtxo = this.utxo;
-    // this.utxo = newTip.stateAfter!;
-
-    // // Apply all the transactions that were in the old chain but not in the new chain to the mempool and mempool UTXO.
-    // // Find common ancestor
-    // const oldChain = await this.getChainIds(oldTip, peer);
-    // const newChain = await this.getChainIds(newTip, peer);
-    // let forkIndex = 0;
-    // for (let i = 0; i < oldChain!.length; i++) {
-    //   if (oldChain![i].blockid === newChain![i].blockid) continue;
-    //   else {
-    //     forkIndex = i;
-    //     break;
-    //   }
-    // }
-    // // from common ancestor -> old chain, get all txs
-    // const oldChainTxs: Transaction[] = [];
-    // for (let j = forkIndex; j < oldChain!.length; j++) {
-    //   const txs = await oldChain![j].getTxs();
-    //   oldChainTxs.push(...txs);
-    // }
-    // // apply each tx to new mempool UTXO
-    // for (const tx of oldChainTxs) {
-    //   this.updateMempoolTx(tx);
-    // }
+    logger.info(`Re-applied ${successes} transaction(s) to mempool.`);
+    logger.info(
+      `${successes - orphanedTxs.length} transactions were abandoned.`,
+    );
+    logger.info(`Mempool reorg completed.`);
   }
 }
-export const mempoolManager = new MempoolManager();
+
+export const mempool = new MemPool();
