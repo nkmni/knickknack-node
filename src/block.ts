@@ -17,7 +17,7 @@ import { Transaction } from './transaction';
 import { chainManager } from './chain';
 import { Deferred } from './promise';
 
-const TARGET =
+export const TARGET =
   '00000000abc00000000000000000000000000000000000000000000000000000';
 const GENESIS: BlockObjectType = {
   T: TARGET,
@@ -29,8 +29,8 @@ const GENESIS: BlockObjectType = {
   txids: [],
   type: 'block',
 };
-const BU = 10 ** 12;
-const BLOCK_REWARD = 50 * BU;
+export const BU = 10 ** 12;
+export const BLOCK_REWARD = 50 * BU;
 
 export class BlockManager {
   deferredValidations: { [key: string]: Deferred<[boolean, string]> } = {};
