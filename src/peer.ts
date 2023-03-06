@@ -38,7 +38,7 @@ import { Block } from './block';
 import { Transaction } from './transaction';
 
 const VERSION = '0.9.0';
-const NAME = 'Malibu (pset5)';
+const NAME = 'Knickknack (pset6)';
 
 // Number of peers that each peer is allowed to report to us
 const MAX_PEERS_PER_PEER = 30;
