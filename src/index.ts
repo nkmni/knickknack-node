@@ -27,7 +27,7 @@ async function main() {
     });
   }
 
-  const worker = importWorker('./worker.ts');
+  const worker = importWorker('./worker.js');
   worker.on('message', msg => {
     console.log(msg);
   });
