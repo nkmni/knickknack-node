@@ -34,3 +34,5 @@ async function main() {
 
   console.log("Execution in main thread");
 }
+
+main();
