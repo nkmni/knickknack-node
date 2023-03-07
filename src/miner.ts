@@ -4,7 +4,11 @@ import { chainManager } from './chain';
 import { hash } from './crypto/hash';
 import { mempool } from './mempool';
 import crypto from 'crypto';
-import { BlockObjectType, TransactionObjectType } from './message';
+import {
+  BlockObjectType,
+  ObjectMessageType,
+  TransactionObjectType,
+} from './message';
 import * as ed from '@noble/ed25519';
 import { network } from './network';
 import { objectManager } from './object';
@@ -21,9 +25,12 @@ export class Miner {
     this.publicKeyHex = Buffer.from(this.publicKey).toString('hex');
     this.initialized = true;
   }
-  async mine(): Promise<BlockObjectType> {
+  async mine() {
     while (true) {
-      const mempoolFees = mempool.txs
+      const mempoolTxs = [...mempool.txs];
+      const tipHeight = chainManager.longestChainHeight;
+      const tip = chainManager.longestChainTip!;
+      const mempoolFees = mempoolTxs
         .map(tx => tx.fees!)
         .reduce((sum, fee) => sum + fee, 0);
       const coinbaseTx: TransactionObjectType = {
@@ -31,31 +38,38 @@ export class Miner {
         outputs: [
           { value: BLOCK_REWARD + mempoolFees, pubkey: this.publicKeyHex! },
         ],
-        height: chainManager.longestChainHeight + 1,
+        height: tipHeight + 1,
       };
-      const txids = mempool.txs.map(tx => tx.txid);
-      const coinbaseTxHash = hash(canonicalize(coinbaseTx));
-      txids.unshift(coinbaseTxHash);
+      const txids = mempoolTxs.map(tx => tx.txid);
+      const coinbaseTxid = hash(canonicalize(coinbaseTx));
+      txids.unshift(coinbaseTxid);
       const candidateBlock: BlockObjectType = {
         type: 'block',
         txids,
         nonce: crypto.randomBytes(32).toString('hex'),
-        previd: chainManager.longestChainTip!.blockid,
+        previd: tip.blockid,
         created: Date.now() / 1000,
         T: TARGET,
         miner: 'knickknack',
         note: 'thx for an awesome quarter!',
         studentids: ['nkhemani', 'lakong'],
       };
-      if (
-        BigInt(`0x${hash(canonicalize(candidateBlock))}`) <
-        BigInt(`0x${TARGET}`)
-      ) {
+      const candidateBlockId = hash(canonicalize(candidateBlock));
+      if (BigInt(`0x${candidateBlockId}`) <= BigInt(`0x${TARGET}`)) {
         await objectManager.put(coinbaseTx);
         await objectManager.put(candidateBlock);
-        network.broadcast(coinbaseTx);
-        network.broadcast(candidateBlock);
-        this.ourCoinbaseUtxos.push(coinbaseTxHash);
+        const coinbaseTxMessage: ObjectMessageType = {
+          type: 'object',
+          object: coinbaseTx,
+        };
+        const candidateBlockMessage: ObjectMessageType = {
+          type: 'object',
+          object: candidateBlock,
+        };
+        network.broadcast(coinbaseTxMessage);
+        network.broadcast(candidateBlockMessage);
+        this.ourCoinbaseUtxos.push(coinbaseTxid);
+        return;
       }
     }
   }
@@ -79,7 +93,12 @@ export class Miner {
       };
       const sig = await ed.sign(canonicalize(tx), this.privateKey!);
       tx.inputs[0].sig = Buffer.from(sig).toString('hex');
-      network.broadcast(tx);
+      await objectManager.put(tx);
+      const txMessage: ObjectMessageType = {
+        type: 'object',
+        object: tx,
+      };
+      network.broadcast(txMessage);
     }
     this.ourCoinbaseUtxos = [];
   }
