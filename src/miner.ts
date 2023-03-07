@@ -1,5 +1,5 @@
 import { canonicalize } from 'json-canonicalize';
-import { BLOCK_REWARD, TARGET } from './block';
+import { Block, BLOCK_REWARD, TARGET } from './block';
 import { chainManager } from './chain';
 import { hash } from './crypto/hash';
 import { mempool } from './mempool';
@@ -23,7 +23,12 @@ export class Miner {
   }
   async mine(): Promise<BlockObjectType> {
     while (true) {
-      const mempoolFees = mempool.txs
+      // grab values from shared memory once at beginning
+      const currentMempool = mempool;
+      const chainHeight = chainManager.longestChainHeight;
+      const chainTip = chainManager.longestChainTip;
+
+      const mempoolFees = currentMempool.txs
         .map(tx => tx.fees!)
         .reduce((sum, fee) => sum + fee, 0);
       const coinbaseTx: TransactionObjectType = {
@@ -31,12 +36,12 @@ export class Miner {
         outputs: [
           { value: BLOCK_REWARD + mempoolFees, pubkey: this.publicKeyHex! },
         ],
-        height: chainManager.longestChainHeight + 1,
+        height: chainHeight + 1,
       };
-      const txids = mempool.txs.map(tx => tx.txid);
+      const txids = currentMempool.txs.map(tx => tx.txid);
       const coinbaseTxHash = hash(canonicalize(coinbaseTx));
       txids.unshift(coinbaseTxHash);
-      const candidateBlock: BlockObjectType = {
+      const candidate: BlockObjectType = {
         type: 'block',
         txids,
         nonce: crypto.randomBytes(32).toString('hex'),
@@ -48,13 +53,25 @@ export class Miner {
         studentids: ['nkhemani', 'lakong'],
       };
       if (
-        BigInt(`0x${hash(canonicalize(candidateBlock))}`) <
+        BigInt(`0x${hash(canonicalize(candidate))}`) <
         BigInt(`0x${TARGET}`)
       ) {
         await objectManager.put(coinbaseTx);
-        await objectManager.put(candidateBlock);
         network.broadcast(coinbaseTx);
-        network.broadcast(candidateBlock);
+        // TODO: Needs Validation!
+        // save block (as class)
+        const candidateBlock = await Block.fromNetworkObject(candidate);
+        // validation begin
+        candidateBlock.valid = true;
+          // TODO: candidateBlock.stateAfter = ;
+        candidateBlock.height = chainHeight + 1;
+        await candidateBlock.save();
+        if (!(await objectManager.exists(candidateBlock.blockid))) {
+          await objectManager.put(candidate);
+        }        
+        await chainManager.onValidBlockArrival(candidateBlock);
+        // validation end
+        network.broadcast(candidateBlock.toNetworkObject());
         this.ourCoinbaseUtxos.push(coinbaseTxHash);
       }
     }
