@@ -13,22 +13,24 @@ logger.info(`Knickknack - A Marabu node`);
 logger.info(`Neil Khemani & Lauren Kong`);
 
 async function main() {
-  if (isMainThread) {
-    await chainManager.init();
-    await mempool.init();
-    network.init(BIND_PORT, BIND_IP);
-    const worker = new Worker(__filename);
-    worker.on('message', msg => {
-      console.log(msg);
+  await chainManager.init();
+  await mempool.init();
+  network.init(BIND_PORT, BIND_IP);
+
+  function importWorker(path: string, options?: WorkerOptions) {
+    const resolvedPath = require.resolve(path);
+    return new Worker(resolvedPath, {
+      ...options,
+      execArgv: /\.ts$/.test(resolvedPath)
+        ? ['require', 'ts-node/register']
+        : undefined,
     });
-  } else {
-    const miner = new Miner();
-    await miner.init();
-    while (true) {
-      miner.mine();
-      miner.dumpCoinsOnDionyziz();
-    }
   }
+
+  const worker = importWorker('./worker.ts');
+  worker.on('message', msg => {
+    console.log(msg);
+  });
 }
 
 main();
