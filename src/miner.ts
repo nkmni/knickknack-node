@@ -8,6 +8,7 @@ import { BlockObjectType, TransactionObjectType } from './message';
 import * as ed from '@noble/ed25519';
 import { network } from './network';
 import { objectManager } from './object';
+import { Transaction } from './transaction';
 
 export class Miner {
   privateKey: Uint8Array | undefined;
@@ -46,7 +47,8 @@ export class Miner {
         txids,
         nonce: crypto.randomBytes(32).toString('hex'),
         previd: chainManager.longestChainTip!.blockid,
-        created: Date.now() / 1000,
+        // how PSET5 Solutions gets block time
+        created: Math.floor(new Date().getTime() / 1000),
         T: TARGET,
         miner: 'knickknack',
         note: 'thx for an awesome quarter!',
@@ -56,23 +58,25 @@ export class Miner {
         BigInt(`0x${hash(canonicalize(candidate))}`) <
         BigInt(`0x${TARGET}`)
       ) {
+        // coinbase
         await objectManager.put(coinbaseTx);
+        await Transaction.fromNetworkObject(coinbaseTx).validate();
         network.broadcast(coinbaseTx);
-        // TODO: Needs Validation!
-        // save block (as class)
-        const candidateBlock = await Block.fromNetworkObject(candidate);
-        // validation begin
-        candidateBlock.valid = true;
-          // TODO: candidateBlock.stateAfter = ;
-        candidateBlock.height = chainHeight + 1;
-        await candidateBlock.save();
-        if (!(await objectManager.exists(candidateBlock.blockid))) {
-          await objectManager.put(candidate);
-        }        
-        await chainManager.onValidBlockArrival(candidateBlock);
-        // validation end
-        network.broadcast(candidateBlock.toNetworkObject());
         this.ourCoinbaseUtxos.push(coinbaseTxHash);
+        // block
+        await objectManager.put(candidate);
+        const candidateBlock = await Block.fromNetworkObject(candidate);
+        // block validation
+        candidateBlock.height = chainHeight + 1;
+        const parentBlock = await candidateBlock.loadParent();
+        const stateAfter = parentBlock!.stateAfter!.copy();
+        await stateAfter!.applyMultiple(mempool.txs, candidateBlock);
+        candidateBlock.stateAfter = stateAfter;
+        candidateBlock.fees = mempoolFees;
+        candidateBlock.valid = true;
+        await candidateBlock.save();
+        await chainManager.onValidBlockArrival(candidateBlock);
+        network.broadcast(candidateBlock.toNetworkObject());
       }
     }
   }
