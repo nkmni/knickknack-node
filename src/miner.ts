@@ -42,15 +42,15 @@ export class Miner {
       const txids = this.currentMempool.txs.map(tx => tx.txid);
       const coinbaseTxHash = hash(canonicalize(coinbaseTx));
       txids.unshift(coinbaseTxHash);
-      const candidateBlock = new Block (
+      const candidateBlock = new Block(
         chainManager.longestChainTip!.blockid,
-        txids, 
+        txids,
         crypto.randomBytes(32).toString('hex'),
         TARGET,
         Math.floor(new Date().getTime() / 1000),
         'knickknack-node',
         'thx for an awesome quarter!',
-        ['nkhemani', 'lakong']
+        ['nkhemani', 'lakong'],
       );
       if (candidateBlock.hasPoW()) {
         candidateBlock.height = this.chainHeight + 1;
@@ -75,7 +75,7 @@ export class Miner {
         BigInt(`0x${hash(canonicalize(candidate))}`) <
         BigInt(`0x${TARGET}`)
       ) { */
-        /* coinbase
+      /* coinbase
         await objectManager.put(coinbaseTx);
         await Transaction.fromNetworkObject(coinbaseTx).validate();
         network.broadcast(coinbaseTx);

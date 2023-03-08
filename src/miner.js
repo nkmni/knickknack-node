@@ -3,7 +3,7 @@ const crypto = require('crypto');
 const hash = require('./crypto/hash')
 
 const TARGET = '00000000abc00000000000000000000000000000000000000000000000000000'
-const BU = 10**12
+const BU = 10 ** 12
 const BLOCK_REWARD = 50 * BU
 
 class Miner {
@@ -63,29 +63,29 @@ class Miner {
 }
 module.exports = { Miner };
   /*
-  async dumpCoinsOnDionyziz() {
-    for (const txid in this.ourCoinbaseUtxos) {
-      const tx = {
-        type: 'transaction',
-        inputs: [
-          {
-            outpoint: { txid, index: 0 },
-            sig: null,
-          },
-        ],
-        outputs: [
-          {
-            value: 50,
-            pubkey:
-              '3f0bc71a375b574e4bda3ddf502fe1afd99aa020bf6049adfe525d9ad18ff33f',
-          },
-        ],
-      };
-      const sig = await ed.sign(canonicalize(tx), this.privateKey);
-      tx.inputs[0].sig = Buffer.from(sig).toString('hex');
-      network.broadcast(tx);
-    }
-    this.ourCoinbaseUtxos = [];
+async dumpCoinsOnDionyziz() {
+  for (const txid in this.ourCoinbaseUtxos) {
+    const tx = {
+      type: 'transaction',
+      inputs: [
+        {
+          outpoint: { txid, index: 0 },
+          sig: null,
+        },
+      ],
+      outputs: [
+        {
+          value: 50,
+          pubkey:
+            '3f0bc71a375b574e4bda3ddf502fe1afd99aa020bf6049adfe525d9ad18ff33f',
+        },
+      ],
+    };
+    const sig = await ed.sign(canonicalize(tx), this.privateKey);
+    tx.inputs[0].sig = Buffer.from(sig).toString('hex');
+    network.broadcast(tx);
   }
+  this.ourCoinbaseUtxos = [];
+}
 }
 */

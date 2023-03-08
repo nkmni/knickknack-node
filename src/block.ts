@@ -1,17 +1,24 @@
-import { BlockObject, BlockObjectType,
-         TransactionObject, ObjectType, AnnotatedError, ErrorChoice } from './message'
-import { hash } from './crypto/hash'
-import { canonicalize } from 'json-canonicalize'
-import { Peer } from './peer'
-import { objectManager, ObjectId, db } from './object'
-import util from 'util'
-import { UTXOSet } from './utxo'
-import { logger } from './logger'
-import { Transaction } from './transaction'
-import { chainManager } from './chain'
-import { Deferred } from './promise'
+import {
+  BlockObject,
+  BlockObjectType,
+  TransactionObject,
+  ObjectType,
+  AnnotatedError,
+  ErrorChoice,
+} from './message';
+import { hash } from './crypto/hash';
+import { canonicalize } from 'json-canonicalize';
+import { Peer } from './peer';
+import { objectManager, ObjectId, db } from './object';
+import util from 'util';
+import { UTXOSet } from './utxo';
+import { logger } from './logger';
+import { Transaction } from './transaction';
+import { chainManager } from './chain';
+import { Deferred } from './promise';
 
-export const TARGET = '00000000abc00000000000000000000000000000000000000000000000000000'
+export const TARGET =
+  '00000000abc00000000000000000000000000000000000000000000000000000';
 const GENESIS: BlockObjectType = {
   T: TARGET,
   created: 1671062400,
@@ -20,46 +27,48 @@ const GENESIS: BlockObjectType = {
   note: 'The New York Times 2022-12-13: Scientists Achieve Nuclear Fusion Breakthrough With Blast of 192 Lasers',
   previd: null,
   txids: [],
-  type: 'block'
-}
-const BU = 10**12
-export const BLOCK_REWARD = 50 * BU
+  type: 'block',
+};
+const BU = 10 ** 12;
+export const BLOCK_REWARD = 50 * BU;
 
 export class BlockManager {
-  deferredValidations: { [key: string]: Deferred<[boolean, string]> } = {}
+  deferredValidations: { [key: string]: Deferred<[boolean, string]> } = {};
 }
 
-export const blockManager = new BlockManager()
+export const blockManager = new BlockManager();
 
 export class Block {
-  previd: string | null
-  txids: ObjectId[]
-  nonce: string
-  T: string
-  created: number
-  miner: string | undefined
-  note: string | undefined
-  studentids: string[] | undefined
-  blockid: string
-  fees: number | undefined
-  stateAfter: UTXOSet | undefined
-  height: number | undefined
-  valid: boolean = false
+  previd: string | null;
+  txids: ObjectId[];
+  nonce: string;
+  T: string;
+  created: number;
+  miner: string | undefined;
+  note: string | undefined;
+  studentids: string[] | undefined;
+  blockid: string;
+  fees: number | undefined;
+  stateAfter: UTXOSet | undefined;
+  height: number | undefined;
+  valid: boolean = false;
 
   public static async makeGenesis(): Promise<Block> {
-    const genesis = await Block.fromNetworkObject(GENESIS)
-    genesis.valid = true
-    genesis.stateAfter = new UTXOSet(new Set<string>())
-    genesis.height = 0
-    await genesis.save()
+    const genesis = await Block.fromNetworkObject(GENESIS);
+    genesis.valid = true;
+    genesis.stateAfter = new UTXOSet(new Set<string>());
+    genesis.height = 0;
+    await genesis.save();
 
-    if (!await objectManager.exists(genesis.blockid)) {
-      await objectManager.put(genesis.toNetworkObject())
+    if (!(await objectManager.exists(genesis.blockid))) {
+      await objectManager.put(genesis.toNetworkObject());
     }
 
-    return genesis
+    return genesis;
   }
-  public static async fromNetworkObject(object: BlockObjectType): Promise<Block> {
+  public static async fromNetworkObject(
+    object: BlockObjectType,
+  ): Promise<Block> {
     const b = new Block(
       object.previd,
       object.txids,
@@ -68,14 +77,13 @@ export class Block {
       object.created,
       object.miner,
       object.note,
-      object.studentids
-    )
+      object.studentids,
+    );
     // see if we can load block metadata from cache
     try {
-      await b.load()
-    }
-    catch {} // block metadata not cached
-    return b
+      await b.load();
+    } catch {} // block metadata not cached
+    return b;
   }
   constructor(
     previd: string | null,
@@ -85,36 +93,36 @@ export class Block {
     created: number,
     miner: string | undefined,
     note: string | undefined,
-    studentids: string[] | undefined
+    studentids: string[] | undefined,
   ) {
-    this.previd = previd
-    this.txids = txids
-    this.nonce = nonce
-    this.T = T
-    this.created = created
-    this.miner = miner
-    this.note = note
-    this.studentids = studentids
-    this.blockid = hash(canonicalize(this.toNetworkObject()))
+    this.previd = previd;
+    this.txids = txids;
+    this.nonce = nonce;
+    this.T = T;
+    this.created = created;
+    this.miner = miner;
+    this.note = note;
+    this.studentids = studentids;
+    this.blockid = hash(canonicalize(this.toNetworkObject()));
   }
   async getCoinbase(): Promise<Transaction> {
-    if (this.txids.length === 0)  {
-      throw new Error('The block has no coinbase transaction')
+    if (this.txids.length === 0) {
+      throw new Error('The block has no coinbase transaction');
     }
-    const txid = this.txids[0]
-    logger.debug(`Checking whether ${txid} is the coinbase`)
-    const obj = await objectManager.get(txid)
+    const txid = this.txids[0];
+    logger.debug(`Checking whether ${txid} is the coinbase`);
+    const obj = await objectManager.get(txid);
 
     if (!TransactionObject.guard(obj)) {
-      throw new Error('The block contains non-transaction txids')
+      throw new Error('The block contains non-transaction txids');
     }
 
-    const tx: Transaction = Transaction.fromNetworkObject(obj)
+    const tx: Transaction = Transaction.fromNetworkObject(obj);
 
     if (tx.isCoinbase()) {
-      return tx
+      return tx;
     }
-    throw new Error('The block has no coinbase transaction')
+    throw new Error('The block has no coinbase transaction');
   }
   toNetworkObject() {
     const netObj: BlockObjectType = {
@@ -125,265 +133,333 @@ export class Block {
       T: this.T,
       created: this.created,
       miner: this.miner,
-    }
+    };
 
     if (this.note !== undefined) {
-      netObj.note = this.note
+      netObj.note = this.note;
     }
     if (this.studentids !== undefined) {
-      netObj.studentids = this.studentids
+      netObj.studentids = this.studentids;
     }
-    return netObj
+    return netObj;
   }
   hasPoW(): boolean {
-    return BigInt(`0x${this.blockid}`) <= BigInt(`0x${TARGET}`)
+    return BigInt(`0x${this.blockid}`) <= BigInt(`0x${TARGET}`);
   }
   isGenesis(): boolean {
-    return this.previd === null
+    return this.previd === null;
   }
   async getTxs(peer?: Peer): Promise<Transaction[]> {
-    const txPromises: Promise<ObjectType>[] = []
-    let maybeTransactions: ObjectType[] = []
-    const txs: Transaction[] = []
+    const txPromises: Promise<ObjectType>[] = [];
+    let maybeTransactions: ObjectType[] = [];
+    const txs: Transaction[] = [];
 
     for (const txid of this.txids) {
       if (peer === undefined) {
-        txPromises.push(objectManager.get(txid))
-      }
-      else {
-        txPromises.push(objectManager.retrieve(txid, peer))
+        txPromises.push(objectManager.get(txid));
+      } else {
+        txPromises.push(objectManager.retrieve(txid, peer));
       }
     }
     try {
-      maybeTransactions = await Promise.all(txPromises)
+      maybeTransactions = await Promise.all(txPromises);
+    } catch (e) {
+      throw new AnnotatedError(
+        'UNFINDABLE_OBJECT',
+        `Retrieval of transactions of block ${this.blockid} failed; rejecting block`,
+      );
     }
-    catch (e) {
-      throw new AnnotatedError('UNFINDABLE_OBJECT', `Retrieval of transactions of block ${this.blockid} failed; rejecting block`)
-    }
-    logger.debug(`We have all ${this.txids.length} transactions of block ${this.blockid}`)
+    logger.debug(
+      `We have all ${this.txids.length} transactions of block ${this.blockid}`,
+    );
     for (const maybeTx of maybeTransactions) {
       if (!TransactionObject.guard(maybeTx)) {
-        throw new AnnotatedError('UNFINDABLE_OBJECT', `Block reports a transaction with id ${objectManager.id(maybeTx)}, but this is not a transaction.`)
+        throw new AnnotatedError(
+          'UNFINDABLE_OBJECT',
+          `Block reports a transaction with id ${objectManager.id(
+            maybeTx,
+          )}, but this is not a transaction.`,
+        );
       }
-      const tx = Transaction.fromNetworkObject(maybeTx)
-      txs.push(tx)
+      const tx = Transaction.fromNetworkObject(maybeTx);
+      txs.push(tx);
     }
 
-    return txs
+    return txs;
   }
   async validateTx(peer: Peer, stateBefore: UTXOSet, height: number) {
-    logger.debug(`Validating ${this.txids.length} transactions of block ${this.blockid}`)
+    logger.debug(
+      `Validating ${this.txids.length} transactions of block ${this.blockid}`,
+    );
 
-    const stateAfter = stateBefore.copy()
+    const stateAfter = stateBefore.copy();
 
-    const txs = await this.getTxs(peer)
+    const txs = await this.getTxs(peer);
 
     for (let idx = 0; idx < txs.length; idx++) {
-      await txs[idx].validate(idx, this)
+      await txs[idx].validate(idx, this);
     }
 
-    await stateAfter.applyMultiple(txs, this)
-    logger.debug(`UTXO state of block ${this.blockid} calculated`)
+    await stateAfter.applyMultiple(txs, this);
+    logger.debug(`UTXO state of block ${this.blockid} calculated`);
 
-    let fees = 0
+    let fees = 0;
     for (const tx of txs) {
       if (tx.fees === undefined) {
-        throw new AnnotatedError('INTERNAL_ERROR', `Transaction fees not calculated`)
+        throw new AnnotatedError(
+          'INTERNAL_ERROR',
+          `Transaction fees not calculated`,
+        );
       }
-      fees += tx.fees
+      fees += tx.fees;
     }
-    this.fees = fees
+    this.fees = fees;
 
-    let coinbase
+    let coinbase;
 
     try {
-      coinbase = await this.getCoinbase()
-    }
-    catch (e) {}
+      coinbase = await this.getCoinbase();
+    } catch (e) {}
 
     if (coinbase !== undefined) {
       if (coinbase.outputs[0].value > BLOCK_REWARD + fees) {
-        throw new AnnotatedError('INVALID_BLOCK_COINBASE',`Coinbase transaction does not respect macroeconomic policy. `
-                      + `Coinbase output was ${coinbase.outputs[0].value}, while reward is ${BLOCK_REWARD} and fees were ${fees}.`)
+        throw new AnnotatedError(
+          'INVALID_BLOCK_COINBASE',
+          `Coinbase transaction does not respect macroeconomic policy. ` +
+            `Coinbase output was ${coinbase.outputs[0].value}, while reward is ${BLOCK_REWARD} and fees were ${fees}.`,
+        );
       }
       if (coinbase.height !== height) {
-        throw new AnnotatedError('INVALID_BLOCK_COINBASE', `Coinbase transaction ${coinbase.txid} of block ${this.blockid} indicates height ${coinbase.height}, `
-                      + `while the block has height ${height}.`)
+        throw new AnnotatedError(
+          'INVALID_BLOCK_COINBASE',
+          `Coinbase transaction ${coinbase.txid} of block ${this.blockid} indicates height ${coinbase.height}, ` +
+            `while the block has height ${height}.`,
+        );
       }
     }
 
-    this.stateAfter = stateAfter
-    logger.debug(`UTXO state of block ${this.blockid} cached: ${JSON.stringify(Array.from(stateAfter.outpoints))}`)
+    this.stateAfter = stateAfter;
+    logger.debug(
+      `UTXO state of block ${this.blockid} cached: ${JSON.stringify(
+        Array.from(stateAfter.outpoints),
+      )}`,
+    );
   }
   async loadParent(): Promise<Block | null> {
-    let parentBlock: Block
+    let parentBlock: Block;
 
     if (this.previd === null) {
-      return null
+      return null;
     }
     try {
-      const parentObject = await objectManager.get(this.previd)
+      const parentObject = await objectManager.get(this.previd);
 
       if (!BlockObject.guard(parentObject)) {
-        return null
+        return null;
       }
-      parentBlock = await Block.fromNetworkObject(parentObject)
+      parentBlock = await Block.fromNetworkObject(parentObject);
+    } catch (e: any) {
+      return null;
     }
-    catch (e: any) {
-      return null
-    }
-    return parentBlock
+    return parentBlock;
   }
   async validateAncestry(peer: Peer): Promise<Block | null> {
     if (this.previd === null) {
       // genesis
-      return null
+      return null;
     }
 
-    let parentBlock: Block
+    let parentBlock: Block;
     try {
-      logger.debug(`Retrieving parent block of ${this.blockid} (${this.previd})`)
-      const parentObject = await objectManager.retrieve(this.previd, peer)
+      logger.debug(
+        `Retrieving parent block of ${this.blockid} (${this.previd})`,
+      );
+      const parentObject = await objectManager.retrieve(this.previd, peer);
 
       if (!BlockObject.guard(parentObject)) {
-        throw new AnnotatedError('UNFINDABLE_OBJECT', `Got parent of block ${this.blockid}, but it was not of BlockObject type; rejecting block.`)
+        throw new AnnotatedError(
+          'UNFINDABLE_OBJECT',
+          `Got parent of block ${this.blockid}, but it was not of BlockObject type; rejecting block.`,
+        );
       }
-      parentBlock = await Block.fromNetworkObject(parentObject)
+      parentBlock = await Block.fromNetworkObject(parentObject);
 
       try {
         // try to load cached block information; this should have been cached
         // as soon as the block was retrieved from the network and validated
-        await parentBlock.load()
-        logger.debug(`Parent block ${this.previd} of the block ${this.blockid} is already cached.`)
+        await parentBlock.load();
+        logger.debug(
+          `Parent block ${this.previd} of the block ${this.blockid} is already cached.`,
+        );
+      } catch {
+        logger.debug(
+          `Awaiting validation of the parent block ${this.previd} of the block ${this.blockid}.`,
+        );
+        await parentBlock.validate(peer);
       }
-      catch {
-        logger.debug(`Awaiting validation of the parent block ${this.previd} of the block ${this.blockid}.`)
-        await parentBlock.validate(peer)
-      }
+    } catch (e: any) {
+      throw new AnnotatedError(
+        'UNFINDABLE_OBJECT',
+        `Retrieval of block parent for block ${this.blockid} failed; rejecting block: ${e.message}`,
+      );
     }
-    catch (e: any) {
-      throw new AnnotatedError('UNFINDABLE_OBJECT', `Retrieval of block parent for block ${this.blockid} failed; rejecting block: ${e.message}`)
-    }
-    return parentBlock
+    return parentBlock;
   }
   async validate(peer: Peer) {
-    logger.debug(`Validating block ${this.blockid}`)
+    logger.debug(`Validating block ${this.blockid}`);
 
     if (blockManager.deferredValidations[this.blockid] !== undefined) {
-      logger.debug(`Block ${this.blockid} is already pending validation. Waiting.`)
-      const result = await blockManager.deferredValidations[this.blockid].promise as [boolean, ErrorChoice]
+      logger.debug(
+        `Block ${this.blockid} is already pending validation. Waiting.`,
+      );
+      const result = (await blockManager.deferredValidations[this.blockid]
+        .promise) as [boolean, ErrorChoice];
       if (!result[0]) {
-        throw new AnnotatedError(result[1], `Block validation failure received through propagation.`)
+        throw new AnnotatedError(
+          result[1],
+          `Block validation failure received through propagation.`,
+        );
       }
-      await this.load()
-      return
+      await this.load();
+      return;
     }
-    const deferred = blockManager.deferredValidations[this.blockid] = new Deferred<[boolean, string]>()
+    const deferred = (blockManager.deferredValidations[this.blockid] =
+      new Deferred<[boolean, string]>());
 
     try {
       if (this.T !== TARGET) {
-        throw new AnnotatedError('INVALID_FORMAT', `Block ${this.blockid} does not specify the fixed target ${TARGET}, but uses target ${this.T} instead.`)
+        throw new AnnotatedError(
+          'INVALID_FORMAT',
+          `Block ${this.blockid} does not specify the fixed target ${TARGET}, but uses target ${this.T} instead.`,
+        );
       }
-      logger.debug(`Block target for ${this.blockid} is valid`)
+      logger.debug(`Block target for ${this.blockid} is valid`);
       if (!this.hasPoW()) {
-        throw new AnnotatedError('INVALID_BLOCK_POW', `Block ${this.blockid} does not satisfy the proof-of-work equation; rejecting block.`)
+        throw new AnnotatedError(
+          'INVALID_BLOCK_POW',
+          `Block ${this.blockid} does not satisfy the proof-of-work equation; rejecting block.`,
+        );
       }
-      logger.debug(`Block proof-of-work for ${this.blockid} is valid`)
+      logger.debug(`Block proof-of-work for ${this.blockid} is valid`);
 
-      let parentBlock: Block | null = null
-      let stateBefore: UTXOSet | undefined
+      let parentBlock: Block | null = null;
+      let stateBefore: UTXOSet | undefined;
 
       if (this.isGenesis()) {
-        this.height = 0
+        this.height = 0;
         if (!util.isDeepStrictEqual(this.toNetworkObject(), GENESIS)) {
-          throw new AnnotatedError('INVALID_GENESIS', `Invalid genesis block ${this.blockid}: ${JSON.stringify(this.toNetworkObject())}`)
+          throw new AnnotatedError(
+            'INVALID_GENESIS',
+            `Invalid genesis block ${this.blockid}: ${JSON.stringify(
+              this.toNetworkObject(),
+            )}`,
+          );
         }
-        logger.debug(`Block ${this.blockid} is genesis block`)
+        logger.debug(`Block ${this.blockid} is genesis block`);
         // genesis state
-        stateBefore = new UTXOSet(new Set<string>())
-        logger.debug(`State before block ${this.blockid} is the genesis state`)
-      }
-      else {
-        parentBlock = await this.validateAncestry(peer)
+        stateBefore = new UTXOSet(new Set<string>());
+        logger.debug(`State before block ${this.blockid} is the genesis state`);
+      } else {
+        parentBlock = await this.validateAncestry(peer);
 
         if (parentBlock === null) {
-          throw new AnnotatedError('UNFINDABLE_OBJECT', `Parent block of block ${this.blockid} was null`)
+          throw new AnnotatedError(
+            'UNFINDABLE_OBJECT',
+            `Parent block of block ${this.blockid} was null`,
+          );
         }
 
-        logger.debug(`Ancestry validation of ${this.blockid} successful.`)
+        logger.debug(`Ancestry validation of ${this.blockid} successful.`);
 
-        const parentHeight = parentBlock.height
+        const parentHeight = parentBlock.height;
 
         if (parentHeight === undefined) {
-          throw new AnnotatedError('UNFINDABLE_OBJECT', `Parent block ${parentBlock.blockid} of block ${this.blockid} has no known height`)
+          throw new AnnotatedError(
+            'UNFINDABLE_OBJECT',
+            `Parent block ${parentBlock.blockid} of block ${this.blockid} has no known height`,
+          );
         }
 
         if (parentBlock.created >= this.created) {
-          throw new AnnotatedError('INVALID_BLOCK_TIMESTAMP', `Parent block ${parentBlock.blockid} created at ${parentBlock.created} has future timestamp of `
-                        + `block ${this.blockid} created at ${this.created}.`)
+          throw new AnnotatedError(
+            'INVALID_BLOCK_TIMESTAMP',
+            `Parent block ${parentBlock.blockid} created at ${parentBlock.created} has future timestamp of ` +
+              `block ${this.blockid} created at ${this.created}.`,
+          );
         }
-        const currentUNIXtimestamp = Math.floor(new Date().getTime() / 1000)
+        const currentUNIXtimestamp = Math.floor(new Date().getTime() / 1000);
         if (this.created > currentUNIXtimestamp) {
-          throw new AnnotatedError('INVALID_BLOCK_TIMESTAMP', `Block ${this.blockid} has a timestamp ${this.created} in the future. `
-                        + `Current time is ${currentUNIXtimestamp}.`)
+          throw new AnnotatedError(
+            'INVALID_BLOCK_TIMESTAMP',
+            `Block ${this.blockid} has a timestamp ${this.created} in the future. ` +
+              `Current time is ${currentUNIXtimestamp}.`,
+          );
         }
 
-        this.height = parentHeight + 1
-        logger.debug(`Block ${this.blockid} has height ${this.height}.`)
+        this.height = parentHeight + 1;
+        logger.debug(`Block ${this.blockid} has height ${this.height}.`);
 
         // this block's starting state is the previous block's ending state
-        stateBefore = parentBlock.stateAfter
-        logger.debug(`Loaded state before block ${this.blockid}`)
+        stateBefore = parentBlock.stateAfter;
+        logger.debug(`Loaded state before block ${this.blockid}`);
       }
-      logger.debug(`Block ${this.blockid} has valid ancestry`)
+      logger.debug(`Block ${this.blockid} has valid ancestry`);
 
       if (stateBefore === undefined) {
-        throw new AnnotatedError('UNFINDABLE_OBJECT', `We have not calculated the state of the parent block,`
-                      + `so we cannot calculate the state of the current block with blockid = ${this.blockid}`)
+        throw new AnnotatedError(
+          'UNFINDABLE_OBJECT',
+          `We have not calculated the state of the parent block,` +
+            `so we cannot calculate the state of the current block with blockid = ${this.blockid}`,
+        );
       }
 
-      logger.debug(`State before block ${this.blockid} is ${stateBefore}`)
+      logger.debug(`State before block ${this.blockid} is ${stateBefore}`);
 
-      await this.validateTx(peer, stateBefore, this.height)
-      logger.debug(`Block ${this.blockid} has valid transactions`)
+      await this.validateTx(peer, stateBefore, this.height);
+      logger.debug(`Block ${this.blockid} has valid transactions`);
 
-      this.valid = true
+      this.valid = true;
       try {
-        await this.save()
-        await chainManager.onValidBlockArrival(this)
-      } 
-      catch (e: any) {
-        throw new AnnotatedError('INTERNAL_ERROR', 'Something went wrong is block saving or state calculations.')
+        await this.save();
+        await chainManager.onValidBlockArrival(this);
+      } catch (e: any) {
+        throw new AnnotatedError(
+          'INTERNAL_ERROR',
+          'Something went wrong is block saving or state calculations.',
+        );
       }
+    } catch (e: any) {
+      deferred.resolve([false, e.name]);
+      delete blockManager.deferredValidations[this.blockid];
+      throw e;
     }
-    catch (e: any) {
-      deferred.resolve([false, e.name])
-      delete blockManager.deferredValidations[this.blockid]
-      throw e
-    }
-    deferred.resolve([true, ''])
-    delete blockManager.deferredValidations[this.blockid]
+    deferred.resolve([true, '']);
+    delete blockManager.deferredValidations[this.blockid];
   }
   async save() {
     if (this.stateAfter === undefined) {
-      throw new Error(`Cannot save block ${this.blockid} with uncalculate state`)
+      throw new Error(
+        `Cannot save block ${this.blockid} with uncalculate state`,
+      );
     }
 
     await db.put(`blockinfo:${this.blockid}`, {
       height: this.height,
-      stateAfterOutpoints: Array.from(this.stateAfter.outpoints)
-    })
-    logger.debug(`Stored valid block ${this.blockid} metadata.`)
+      stateAfterOutpoints: Array.from(this.stateAfter.outpoints),
+    });
+    logger.debug(`Stored valid block ${this.blockid} metadata.`);
   }
   async load() {
-    logger.debug(`Loading block ${this.blockid} metadata.`)
+    logger.debug(`Loading block ${this.blockid} metadata.`);
 
-    const { height, stateAfterOutpoints } = await db.get(`blockinfo:${this.blockid}`)
+    const { height, stateAfterOutpoints } = await db.get(
+      `blockinfo:${this.blockid}`,
+    );
 
-    logger.debug(`Block ${this.blockid} metadata loaded from database.`)
+    logger.debug(`Block ${this.blockid} metadata loaded from database.`);
 
-    this.height = height
-    this.stateAfter = new UTXOSet(new Set<string>(stateAfterOutpoints))
-    this.valid = true
+    this.height = height;
+    this.stateAfter = new UTXOSet(new Set<string>(stateAfterOutpoints));
+    this.valid = true;
   }
 }
