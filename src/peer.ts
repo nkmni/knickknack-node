@@ -37,7 +37,7 @@ import { mempool } from './mempool';
 import { Block } from './block';
 import { Transaction } from './transaction';
 
-const VERSION = '0.9.0';
+const VERSION = '0.10.0';
 const NAME = 'Knickknack (pset6)';
 
 // Number of peers that each peer is allowed to report to us
