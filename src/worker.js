@@ -4,8 +4,6 @@ const {parentPort, workerData} = require('worker_threads');
 (async function () {
   const miner = new Miner(workerData.mempool, workerData.chainHeight, workerData.chainTip);
   await miner.init();
-  while (true) {
-    const minedBlock = await miner.mine();
-    parentPort.postMessage(minedBlock);
-  }
+  const minedBlock = await miner.mine();
+  parentPort.postMessage(minedBlock);
 })();
