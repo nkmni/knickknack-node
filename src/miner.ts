@@ -2,12 +2,11 @@ import { canonicalize } from 'json-canonicalize';
 import { Block, BLOCK_REWARD, TARGET } from './block';
 import { chainManager } from './chain';
 import { hash } from './crypto/hash';
-import { mempool } from './mempool';
+import { MemPool } from './mempool';
 import crypto from 'crypto';
 import { BlockObjectType, TransactionObjectType } from './message';
 import * as ed from '@noble/ed25519';
 import { network } from './network';
-import { objectManager } from './object';
 import { Transaction } from './transaction';
 
 export class Miner {
@@ -16,20 +15,22 @@ export class Miner {
   publicKeyHex: string | undefined;
   initialized: boolean = false;
   ourCoinbaseUtxos: string[] = []; // array of txids
-  async init() {
+  currentMempool: MemPool;
+  chainHeight: number;
+  chainTip: Block;
+
+  async init(mempool: MemPool, chainHeight: number, chainTip: Block) {
     this.privateKey = ed.utils.randomPrivateKey();
     this.publicKey = await ed.getPublicKey(this.privateKey);
     this.publicKeyHex = Buffer.from(this.publicKey).toString('hex');
     this.initialized = true;
+    this.currentMempool = mempool;
+    this.chainHeight = chainHeight;
+    this.chainTip = chainTip;
   }
   async mine(): Promise<BlockObjectType> {
     while (true) {
-      // grab values from shared memory once at beginning
-      const currentMempool = mempool;
-      const chainHeight = chainManager.longestChainHeight;
-      const chainTip = chainManager.longestChainTip;
-
-      const mempoolFees = currentMempool.txs
+      const mempoolFees = this.currentMempool.txs
         .map(tx => tx.fees!)
         .reduce((sum, fee) => sum + fee, 0);
       const coinbaseTx: TransactionObjectType = {
@@ -37,9 +38,9 @@ export class Miner {
         outputs: [
           { value: BLOCK_REWARD + mempoolFees, pubkey: this.publicKeyHex! },
         ],
-        height: chainHeight + 1,
+        height: this.chainHeight + 1,
       };
-      const txids = currentMempool.txs.map(tx => tx.txid);
+      const txids = this.currentMempool.txs.map(tx => tx.txid);
       const coinbaseTxHash = hash(canonicalize(coinbaseTx));
       txids.unshift(coinbaseTxHash);
       const candidate: BlockObjectType = {
@@ -58,11 +59,13 @@ export class Miner {
         BigInt(`0x${hash(canonicalize(candidate))}`) <
         BigInt(`0x${TARGET}`)
       ) {
-        // coinbase
+        /* coinbase
         await objectManager.put(coinbaseTx);
         await Transaction.fromNetworkObject(coinbaseTx).validate();
         network.broadcast(coinbaseTx);
-        this.ourCoinbaseUtxos.push(coinbaseTxHash);
+        this.ourCoinbaseUtxos.push(coinbaseTxHash); */
+        return candidate;
+        /* 
         // block
         await objectManager.put(candidate);
         const candidateBlock = await Block.fromNetworkObject(candidate);
@@ -76,7 +79,7 @@ export class Miner {
         candidateBlock.valid = true;
         await candidateBlock.save();
         await chainManager.onValidBlockArrival(candidateBlock);
-        network.broadcast(candidateBlock.toNetworkObject());
+        network.broadcast(candidateBlock.toNetworkObject()); */
       }
     }
   }
