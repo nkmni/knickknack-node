@@ -4,10 +4,9 @@ import { chainManager } from './chain';
 import { hash } from './crypto/hash';
 import { MemPool } from './mempool';
 import crypto from 'crypto';
-import { BlockObjectType, TransactionObjectType } from './message';
+import { TransactionObjectType } from './message';
 import * as ed from '@noble/ed25519';
 import { network } from './network';
-import { Transaction } from './transaction';
 
 export class Miner {
   privateKey: Uint8Array | undefined;
@@ -28,7 +27,7 @@ export class Miner {
     this.chainHeight = chainHeight;
     this.chainTip = chainTip;
   }
-  async mine(): Promise<BlockObjectType> {
+  async mine(): Promise<Block> {
     while (true) {
       const mempoolFees = this.currentMempool.txs
         .map(tx => tx.fees!)
@@ -43,7 +42,24 @@ export class Miner {
       const txids = this.currentMempool.txs.map(tx => tx.txid);
       const coinbaseTxHash = hash(canonicalize(coinbaseTx));
       txids.unshift(coinbaseTxHash);
-      const candidate: BlockObjectType = {
+      const candidateBlock = new Block (
+        chainManager.longestChainTip!.blockid,
+        txids, 
+        crypto.randomBytes(32).toString('hex'),
+        TARGET,
+        Math.floor(new Date().getTime() / 1000),
+        'knickknack-node',
+        'thx for an awesome quarter!',
+        ['nkhemani', 'lakong']
+      );
+      if (candidateBlock.hasPoW()) {
+        candidateBlock.height = this.chainHeight + 1;
+        candidateBlock.fees = mempoolFees;
+        candidateBlock.valid = true;
+        return candidateBlock;
+      }
+      /*
+      const candidateBlock : BlockObjectType {
         type: 'block',
         txids,
         nonce: crypto.randomBytes(32).toString('hex'),
@@ -58,29 +74,24 @@ export class Miner {
       if (
         BigInt(`0x${hash(canonicalize(candidate))}`) <
         BigInt(`0x${TARGET}`)
-      ) {
+      ) { */
         /* coinbase
         await objectManager.put(coinbaseTx);
         await Transaction.fromNetworkObject(coinbaseTx).validate();
         network.broadcast(coinbaseTx);
-        this.ourCoinbaseUtxos.push(coinbaseTxHash); */
-        return candidate;
-        /* 
+        this.ourCoinbaseUtxos.push(coinbaseTxHash);
         // block
         await objectManager.put(candidate);
         const candidateBlock = await Block.fromNetworkObject(candidate);
         // block validation
-        candidateBlock.height = chainHeight + 1;
         const parentBlock = await candidateBlock.loadParent();
         const stateAfter = parentBlock!.stateAfter!.copy();
         await stateAfter!.applyMultiple(mempool.txs, candidateBlock);
         candidateBlock.stateAfter = stateAfter;
-        candidateBlock.fees = mempoolFees;
-        candidateBlock.valid = true;
+
         await candidateBlock.save();
         await chainManager.onValidBlockArrival(candidateBlock);
         network.broadcast(candidateBlock.toNetworkObject()); */
-      }
     }
   }
   async dumpCoinsOnDionyziz() {

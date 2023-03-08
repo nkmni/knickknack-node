@@ -1,11 +1,11 @@
-const { Miner } = require('./miner');
-const {parentPort, workerData} = require("worker_threads");
+const { Miner } = require('./miner.js');
+const {parentPort, workerData} = require('worker_threads');
 
 (async function () {
-  const miner = new Miner();
+  const miner = new Miner(workerData.mempool, workerData.chainHeight, workerData.chainTip);
   await miner.init();
   while (true) {
-    const block = await miner.mine();
-    parentPort.postMessage(block);
+    const minedBlock = await miner.mine();
+    parentPort.postMessage(minedBlock);
   }
 })();
