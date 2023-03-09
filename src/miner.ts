@@ -5,6 +5,7 @@ import { hash } from './crypto/hash';
 import { mempool } from './mempool';
 import crypto from 'crypto';
 import {
+  BlockObject,
   BlockObjectType,
   ObjectMessageType,
   TransactionObjectType,
@@ -12,9 +13,11 @@ import {
 import * as ed from '@noble/ed25519';
 import { network } from './network';
 import { objectManager } from './object';
-import { Worker } from 'worker_threads';
+import { Worker, WorkerOptions } from 'worker_threads';
 import { EventEmitter } from 'events';
 import { writeFileSync } from 'fs';
+import { logger } from './logger';
+import { Transaction } from './transaction';
 
 export const minerEventEmitter = new EventEmitter();
 
@@ -44,25 +47,32 @@ export class Miner {
       this.worker = this.spawnWorker(candidateBlock);
     });
   }
+  importWorker(path: string, options?: WorkerOptions) {
+    const resolvedPath = require.resolve(path);
+    return new Worker(resolvedPath, {
+      ...options,
+      execArgv: /\.ts$/.test(resolvedPath)
+        ? ["--require", "ts-node/register"]
+        : undefined,
+    });
+  }
   spawnWorker(candidateBlock: BlockObjectType) {
-    const resolvedPath = require.resolve('./worker.js');
-    const worker = new Worker(resolvedPath, { workerData: candidateBlock });
-    worker.on('message', async (minedBlockObj: BlockObjectType) => {
-      const candidateBlockMessage: ObjectMessageType = {
-        type: 'object',
-        object: minedBlockObj,
-      };
-      network.broadcast(candidateBlockMessage);
-      const minedBlock = await Block.fromNetworkObject(minedBlockObj);
-      const parentBlock = await minedBlock.loadParent();
-      const stateAfter = parentBlock!.stateAfter!.copy();
-      await stateAfter!.applyMultiple(await minedBlock.getTxs(), minedBlock);
-      minedBlock.stateAfter = stateAfter;
-      minedBlock.valid = true;
-      await minedBlock.save();
-      await objectManager.put(minedBlockObj);
-      await chainManager.onValidBlockArrival(minedBlock);
-      await this.dumpCoinsOnDionyziz(minedBlock.txids[0]);
+    const worker = this.importWorker('./worker.ts', { workerData: candidateBlock });
+    worker.on('message', async (msg) => {
+      if (BlockObject.guard(msg)) {
+        const minedBlockObj: BlockObjectType = msg;
+        const candidateBlockMessage: ObjectMessageType = {
+          type: 'object',
+          object: minedBlockObj,
+        };
+        network.broadcast(candidateBlockMessage);
+        const minedBlock = await Block.fromNetworkObject(minedBlockObj);
+        await this.dumpCoinsOnDionyziz(minedBlock.txids[0]);
+        const candidateBlock = await this.generateCandidateBlock();
+        this.worker = this.spawnWorker(candidateBlock);
+      } else {
+        logger.log('debug', `worker: ${msg}`);
+      }
     });
     worker.on('error', (error: Error) => {
       console.log(error);
@@ -75,7 +85,7 @@ export class Miner {
     const tip = chainManager.longestChainTip!;
 
     const mempoolFees = mempoolTxs
-      .map(tx => tx.fees!)
+      .map(tx => tx.fees ?? 0)
       .reduce((sum, fee) => sum + fee, 0);
 
     const coinbaseTxObj: TransactionObjectType = {
@@ -105,6 +115,9 @@ export class Miner {
     return candidateBlock;
   }
   async dumpCoinsOnDionyziz(txid: string) {
+    const inputTxObj = await objectManager.get(txid);
+    const inputTx = Transaction.fromNetworkObject(inputTxObj);
+    const value = inputTx.outputs[0].value;
     const tx: TransactionObjectType = {
       type: 'transaction',
       inputs: [
@@ -115,13 +128,17 @@ export class Miner {
       ],
       outputs: [
         {
-          value: 50,
+          value,
           pubkey:
             '3f0bc71a375b574e4bda3ddf502fe1afd99aa020bf6049adfe525d9ad18ff33f',
         },
       ],
     };
-    const sig = await ed.sign(canonicalize(tx), this.privateKey!);
+    writeFileSync(
+      `./txs/${Date.now()}.txt`,
+      `${hash(canonicalize(tx))}`,
+    );
+    const sig = await ed.sign(Buffer.from(canonicalize(tx)), this.privateKey!);
     tx.inputs[0].sig = Buffer.from(sig).toString('hex');
     await objectManager.put(tx);
     const txMessage: ObjectMessageType = {
