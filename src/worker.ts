@@ -9,21 +9,26 @@ function main() {
   let hashes = 0;
   const startTime = Date.now();
   let prevTotalSeconds = 0;
-  const candidateBlock: BlockObjectType = workerData;
+  const templateBlock: BlockObjectType = workerData;
+  const templateStr = canonicalize(templateBlock);
+  const [prefix, suffix] = templateStr.split('null');
   while (true) {
+    // candidateBlock.nonce = crypto.randomBytes(32).toString('hex');
+    // const candidateBlockId = hash(canonicalize(candidateBlock));
+    const nonce = crypto.randomBytes(32).toString('hex');
+    const candidateBlockStr = `${prefix}"${nonce}"${suffix}`;
+    const candidateBlockId = hash(candidateBlockStr);
+    if (BigInt(`0x${candidateBlockId}`) <= BigInt(`0x${TARGET}`)) {
+      parentPort?.postMessage('successfully mined block');
+      parentPort?.postMessage(JSON.parse(candidateBlockStr));
+      break;
+    }
+    ++hashes;
     let totalSeconds = (Date.now() - startTime) / 1000;
     if (totalSeconds - prevTotalSeconds > 5) {
       prevTotalSeconds = totalSeconds;
       parentPort?.postMessage(`hashrate: ${hashes / totalSeconds}`);
     }
-    candidateBlock.nonce = crypto.randomBytes(32).toString('hex');
-    const candidateBlockId = hash(canonicalize(candidateBlock));
-    if (BigInt(`0x${candidateBlockId}`) <= BigInt(`0x${TARGET}`)) {
-      parentPort?.postMessage('successfully mined block');
-      parentPort?.postMessage(candidateBlock);
-      break;
-    }
-    ++hashes;
   }
 }
 

@@ -56,7 +56,7 @@ export class Miner {
         : undefined,
     });
   }
-  spawnWorker(candidateBlock: BlockObjectType) {
+  spawnWorker(candidateBlock: object) {
     const worker = this.importWorker('./worker.ts', {
       workerData: candidateBlock,
     });
@@ -89,7 +89,7 @@ export class Miner {
     });
     return worker;
   }
-  async generateCandidateBlock(): Promise<BlockObjectType> {
+  async generateCandidateBlock() {
     const mempoolTxs = [...mempool.txs];
     const tipHeight = chainManager.longestChainHeight;
     const tip = chainManager.longestChainTip!;
@@ -111,10 +111,10 @@ export class Miner {
 
     const txids = mempoolTxs.map(tx => tx.txid);
     txids.unshift(coinbaseTxid);
-    const candidateBlock: BlockObjectType = {
+    const candidateBlock = {
       type: 'block',
       txids,
-      nonce: crypto.randomBytes(32).toString('hex'),
+      nonce: null,
       previd: tip.blockid,
       created: Math.floor(Date.now() / 1000),
       T: TARGET,
