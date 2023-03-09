@@ -52,13 +52,19 @@ export class Miner {
     return new Worker(resolvedPath, {
       ...options,
       execArgv: /\.ts$/.test(resolvedPath)
-        ? ["--require", "ts-node/register"]
+        ? ['--require', 'ts-node/register']
         : undefined,
     });
   }
   spawnWorker(candidateBlock: BlockObjectType) {
-    const worker = this.importWorker('./worker.ts', { workerData: candidateBlock });
-    worker.on('message', async (msg) => {
+    const worker = this.importWorker('./src/worker.ts', {
+      workerData: candidateBlock,
+    });
+    writeFileSync(
+      './errorlogs/log.txt',
+      `${Date.now()}\n${JSON.stringify(worker)}\n\n`,
+    );
+    worker.on('message', async msg => {
       if (BlockObject.guard(msg)) {
         const minedBlockObj: BlockObjectType = msg;
         const candidateBlockMessage: ObjectMessageType = {
@@ -76,6 +82,10 @@ export class Miner {
     });
     worker.on('error', (error: Error) => {
       console.log(error);
+      writeFileSync(
+        './errorlogs/log.txt',
+        `${Date.now()}\n${error.name}\n${error.message}\n${error.stack}\n\n`,
+      );
     });
     return worker;
   }
@@ -134,10 +144,7 @@ export class Miner {
         },
       ],
     };
-    writeFileSync(
-      `./txs/${Date.now()}.txt`,
-      `${hash(canonicalize(tx))}`,
-    );
+    writeFileSync(`./txs/${Date.now()}.txt`, `${hash(canonicalize(tx))}`);
     const sig = await ed.sign(Buffer.from(canonicalize(tx)), this.privateKey!);
     tx.inputs[0].sig = Buffer.from(sig).toString('hex');
     await objectManager.put(tx);
