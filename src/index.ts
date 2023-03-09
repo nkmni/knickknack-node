@@ -5,7 +5,7 @@ import { mempool } from './mempool';
 import { miner } from './miner';
 
 const BIND_PORT = 18018;
-const BIND_IP = '45.77.3.115';
+const BIND_IP = '0.0.0.0';
 
 logger.info(`Knickknack - A Marabu node`);
 logger.info(`Neil Khemani & Lauren Kong`);
