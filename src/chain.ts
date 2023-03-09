@@ -1,6 +1,7 @@
 import { Block } from './block';
 import { logger } from './logger';
 import { mempool } from './mempool';
+import { minerEventEmitter } from './miner';
 import { db } from './object';
 
 class ChainManager {
@@ -75,6 +76,7 @@ class ChainManager {
       this.longestChainTip = block;
       await mempool.reorg(lca, shortFork, longFork);
       await this.save();
+      minerEventEmitter.emit('update');
     }
   }
 }

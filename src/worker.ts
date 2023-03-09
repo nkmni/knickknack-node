@@ -1,12 +1,20 @@
-import { Miner } from './miner';
-import { parentPort } from 'worker_threads';
+import { BlockObjectType } from './message';
+import { parentPort, workerData } from 'worker_threads';
+import crypto from 'crypto';
+import { canonicalize } from 'json-canonicalize';
+import { hash } from './crypto/hash';
+import { TARGET } from './block';
 
-(async function () {
-  const miner = new Miner();
-  await miner.init();
+function main() {
+  const candidateBlock: BlockObjectType = workerData;
   while (true) {
-    await miner.mine();
-    await miner.dumpCoinsOnDionyziz();
-    parentPort?.postMessage('success');
+    candidateBlock.nonce = crypto.randomBytes(32).toString('hex');
+    const candidateBlockId = hash(canonicalize(candidateBlock));
+    if (BigInt(`0x${candidateBlockId}`) <= BigInt(`0x${TARGET}`)) {
+      parentPort?.postMessage(candidateBlock);
+      break;
+    }
   }
-})();
+}
+
+main();

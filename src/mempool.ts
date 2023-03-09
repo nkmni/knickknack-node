@@ -2,6 +2,7 @@ import { Block } from './block';
 import { Chain } from './chain';
 import { logger } from './logger';
 import { AnnotatedError } from './message';
+import { minerEventEmitter } from './miner';
 import { db, ObjectId, objectManager } from './object';
 import { Transaction } from './transaction';
 import { UTXOSet } from './utxo';
@@ -29,6 +30,8 @@ class MemPool {
         Transaction.fromNetworkObject(await objectManager.get(txid)),
       );
     }
+
+    minerEventEmitter.emit('update');
   }
   async save() {
     if (this.state === undefined) {
@@ -57,6 +60,7 @@ class MemPool {
       // start with an empty state
       this.state = new UTXOSet(new Set());
     }
+    minerEventEmitter.emit('update');
   }
   async onTransactionArrival(tx: Transaction): Promise<boolean> {
     try {
@@ -71,6 +75,7 @@ class MemPool {
     logger.debug(`Added transaction ${tx.txid} to mempool`);
     this.txs.push(tx);
     await this.save();
+    minerEventEmitter.emit('update');
     return true;
   }
   async reorg(lca: Block, shortFork: Chain, longFork: Chain) {
@@ -108,6 +113,7 @@ class MemPool {
         ++successes;
       }
     }
+    minerEventEmitter.emit('update');
     logger.info(`Re-applied ${successes} transaction(s) to mempool.`);
     logger.info(
       `${successes - orphanedTxs.length} transactions were abandoned.`,
