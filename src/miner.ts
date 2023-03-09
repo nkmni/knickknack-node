@@ -31,7 +31,7 @@ export class Miner {
     this.publicKeyHex = Buffer.from(this.publicKey).toString('hex');
 
     writeFileSync(
-      `./keys-${Date.now() / 1000}.txt`,
+      `./keys/${Date.now() / 1000}.txt`,
       `sec: ${privateKeyHex}\npub: ${this.publicKeyHex}`,
     );
 
