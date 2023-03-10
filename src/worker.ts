@@ -28,7 +28,11 @@ function main() {
     let totalSeconds = (Date.now() - startTime) / 1000;
     if (totalSeconds - prevTotalSeconds > 5) {
       parentPort?.postMessage(`avg hashrate: ${hashes / totalSeconds}`);
-      parentPort?.postMessage(`curr hashrate: ${(hashes-prevHashes) / (totalSeconds-prevTotalSeconds)}`);
+      parentPort?.postMessage(
+        `curr hashrate: ${
+          (hashes - prevHashes) / (totalSeconds - prevTotalSeconds)
+        }`,
+      );
       prevHashes = hashes;
       prevTotalSeconds = totalSeconds;
     }

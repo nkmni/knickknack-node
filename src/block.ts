@@ -137,7 +137,7 @@ export class Block {
       created: this.created,
     };
     if (this.miner !== undefined) {
-      netObj.miner = this.miner
+      netObj.miner = this.miner;
     }
     if (this.note !== undefined) {
       netObj.note = this.note;

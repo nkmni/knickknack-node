@@ -68,7 +68,10 @@ export class Miner {
       if (BlockObject.guard(msg)) {
         const minedBlockObj: BlockObjectType = msg;
         const minedBlockStr = canonicalize(minedBlockObj);
-        writeFileSync(`./blocks/${Date.now()}.txt`, `${hash(minedBlockStr)}\n\n${minedBlockStr}`);
+        writeFileSync(
+          `./blocks/${Date.now()}.txt`,
+          `${hash(minedBlockStr)}\n\n${minedBlockStr}`,
+        );
         const candidateBlockMessage: ObjectMessageType = {
           type: 'object',
           object: minedBlockObj,

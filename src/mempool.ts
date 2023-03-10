@@ -58,9 +58,9 @@ class MemPool {
       this.state = new UTXOSet(new Set<string>(outpoints));
     } catch {
       // start with an empty state
-      this.txs = []
-      this.state = new UTXOSet(new Set())
-      await this.save()
+      this.txs = [];
+      this.state = new UTXOSet(new Set());
+      await this.save();
     }
     minerEventEmitter.emit('update');
   }
