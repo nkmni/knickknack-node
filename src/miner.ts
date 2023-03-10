@@ -14,12 +14,9 @@ import * as ed from '@noble/ed25519';
 import { network } from './network';
 import { objectManager } from './object';
 import { Worker, WorkerOptions } from 'worker_threads';
-import { EventEmitter } from 'events';
 import { writeFileSync } from 'fs';
 import { logger } from './logger';
 import { Transaction } from './transaction';
-
-export const minerEventEmitter = new EventEmitter();
 
 export class Miner {
   privateKey: Uint8Array | undefined;
@@ -40,12 +37,11 @@ export class Miner {
 
     const candidateBlock = await this.generateCandidateBlock();
     this.worker = this.spawnWorker(candidateBlock);
-
-    minerEventEmitter.on('update', async data => {
-      this.worker?.terminate();
-      const candidateBlock = await this.generateCandidateBlock();
-      this.worker = this.spawnWorker(candidateBlock);
-    });
+  }
+  async updateWorker() {
+    this.worker?.terminate();
+    const candidateBlock = await this.generateCandidateBlock();
+    this.worker = this.spawnWorker(candidateBlock);
   }
   importWorker(path: string, options?: WorkerOptions) {
     const resolvedPath = require.resolve(path);
