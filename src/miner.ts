@@ -53,7 +53,7 @@ export class Miner {
     });
   }
   spawnWorker(candidateBlock: object) {
-    const worker = this.importWorker('./worker.ts', {
+    const worker = this.importWorker('./worker.js', {
       workerData: candidateBlock,
     });
     writeFileSync(
