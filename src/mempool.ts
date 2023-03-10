@@ -58,12 +58,17 @@ class MemPool {
       this.state = new UTXOSet(new Set<string>(outpoints));
     } catch {
       // start with an empty state
-      this.state = new UTXOSet(new Set());
+      this.txs = []
+      this.state = new UTXOSet(new Set())
+      await this.save()
     }
     minerEventEmitter.emit('update');
   }
   async onTransactionArrival(tx: Transaction): Promise<boolean> {
     try {
+      if (tx.isCoinbase()) {
+        throw new Error('coinbase cannot be added to mempool');
+      }
       await this.state?.apply(tx);
     } catch (e: any) {
       // failed to apply transaction to mempool, ignore it
@@ -119,6 +124,7 @@ class MemPool {
       `${successes - orphanedTxs.length} transactions were abandoned.`,
     );
     logger.info(`Mempool reorg completed.`);
+    await this.save();
   }
 }
 

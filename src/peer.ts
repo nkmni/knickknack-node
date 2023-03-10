@@ -320,7 +320,9 @@ export class Peer {
   }
   async onMessageMempool(msg: MempoolMessageType) {
     for (const txid of msg.txids) {
-      objectManager.retrieve(txid, this); // intentionally delayed
+      objectManager.retrieve(txid, this).catch(() => {
+        this.sendError(new AnnotatedError('UNFINDABLE_OBJECT', 'Could not find one of the objects in the mempool'))
+      }); // intentionally delayed
     }
   }
   async onMessageError(msg: ErrorMessageType) {
