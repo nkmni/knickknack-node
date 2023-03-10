@@ -9,6 +9,7 @@ function main() {
   let hashes = 0;
   const startTime = Date.now();
   let prevTotalSeconds = 0;
+  let prevHashes = 0;
   const templateBlock: BlockObjectType = workerData;
   const templateStr = canonicalize(templateBlock);
   const [prefix, suffix] = templateStr.split('null');
@@ -26,8 +27,10 @@ function main() {
     ++hashes;
     let totalSeconds = (Date.now() - startTime) / 1000;
     if (totalSeconds - prevTotalSeconds > 5) {
+      parentPort?.postMessage(`avg hashrate: ${hashes / totalSeconds}`);
+      parentPort?.postMessage(`curr hashrate: ${(hashes-prevHashes) / (totalSeconds-prevTotalSeconds)}`);
+      prevHashes = hashes;
       prevTotalSeconds = totalSeconds;
-      parentPort?.postMessage(`hashrate: ${hashes / totalSeconds}`);
     }
   }
 }
