@@ -45,7 +45,7 @@ class Network {
       }
     }
 
-    // await miner.dumpCoinsOnDionyziz('744969aa69e6f9ba8a568be1e21085882ff72c32e317c87edb201c37e53f5b0e');
+    await miner.dumpCoinsOnDionyziz('744969aa69e6f9ba8a568be1e21085882ff72c32e317c87edb201c37e53f5b0e');
   }
   broadcast(obj: object) {
     logger.info(`Broadcasting object to all peers: %o`, obj);
