@@ -1,0 +1,3 @@
+0db9f8808f7d6626f8e84c84d2dc94318c8f28bcba773da2d9ff145ccc551fbd
+
+{"inputs":[{"outpoint":{"index":0,"txid":"744969aa69e6f9ba8a568be1e21085882ff72c32e317c87edb201c37e53f5b0e"},"sig":"0707acbd1ca935c14ad330b8fabad0a6705f785ea618077cb99f0f48112cd0442a1a1f8bccd5a77b39308f129fe7bb44417e16040925b2057f958abe59e3c308"}],"outputs":[{"pubkey":"3f0bc71a375b574e4bda3ddf502fe1afd99aa020bf6049adfe525d9ad18ff33f","value":50000000000000}],"type":"transaction"}
