@@ -17,12 +17,14 @@ import { Worker, WorkerOptions } from 'worker_threads';
 import { writeFileSync } from 'fs';
 import { logger } from './logger';
 import { Transaction } from './transaction';
+import { Deferred } from './promise';
 
 export class Miner {
   privateKey: Uint8Array | undefined;
   publicKey: Uint8Array | undefined;
   publicKeyHex: string | undefined;
   worker: Worker | undefined;
+  deferredUpdate: Deferred<boolean> | undefined;
 
   async init() {
     this.privateKey = ed.utils.randomPrivateKey();
@@ -35,13 +37,18 @@ export class Miner {
       `sec: ${privateKeyHex}\npub: ${this.publicKeyHex}`,
     );
 
-    const candidateBlock = await this.generateCandidateBlock();
-    this.worker = this.spawnWorker(candidateBlock);
+    await this.updateWorker();
   }
   async updateWorker() {
+    while (this.deferredUpdate !== undefined) {
+      await this.deferredUpdate.promise;
+    }
+    this.deferredUpdate = new Deferred<boolean>();
     await this.worker?.terminate();
     const candidateBlock = await this.generateCandidateBlock();
     this.worker = this.spawnWorker(candidateBlock);
+    this.deferredUpdate.resolve(true);
+    this.deferredUpdate = undefined;
   }
   importWorker(path: string, options?: WorkerOptions) {
     const resolvedPath = require.resolve(path);
@@ -75,8 +82,7 @@ export class Miner {
         network.broadcast(candidateBlockMessage);
         const minedBlock = await Block.fromNetworkObject(minedBlockObj);
         await this.dumpCoinsOnDionyziz(minedBlock.txids[0]);
-        const candidateBlock = await this.generateCandidateBlock();
-        this.worker = this.spawnWorker(candidateBlock);
+        await this.updateWorker();
       } else {
         logger.log('debug', `worker: ${msg}`);
       }
