@@ -89,10 +89,10 @@ export class Miner {
     });
     worker.on('error', (error: Error) => {
       console.log(error);
-      writeFileSync(
-        './errorlogs/log.txt',
-        `${Date.now()}\n${error.name}\n${error.message}\n${error.stack}\n\n`,
-      );
+      // writeFileSync(
+      //   './errorlogs/log.txt',
+      //   `${Date.now()}\n${error.name}\n${error.message}\n${error.stack}\n\n`,
+      // );
     });
     return worker;
   }
