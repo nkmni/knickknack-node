@@ -33,6 +33,7 @@ function main() {
           (hashes - prevHashes) / (totalSeconds - prevTotalSeconds)
         }`,
       );
+      parentPort?.postMessage(candidateBlockStr);
       prevHashes = hashes;
       prevTotalSeconds = totalSeconds;
     }
