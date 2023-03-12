@@ -39,7 +39,7 @@ export class Miner {
     this.worker = this.spawnWorker(candidateBlock);
   }
   async updateWorker() {
-    this.worker?.terminate();
+    await this.worker?.terminate();
     const candidateBlock = await this.generateCandidateBlock();
     this.worker = this.spawnWorker(candidateBlock);
   }
