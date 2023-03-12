@@ -33,7 +33,7 @@ function main() {
           (hashes - prevHashes) / (totalSeconds - prevTotalSeconds)
         }`,
       );
-      parentPort?.postMessage(candidateBlockStr);
+      parentPort?.postMessage(`previd: ${templateBlock.previd}`);
       prevHashes = hashes;
       prevTotalSeconds = totalSeconds;
     }
