@@ -151,7 +151,7 @@ export class Miner {
         },
       ],
     };
-    writeFileSync(`./txs/${Date.now()}.txt`, `${hash(canonicalize(tx))}`);
+    writeFileSync(`./txs/${Date.now()}.txt`, `${hash(canonicalize(tx))}\n\n${canonicalize(tx)}`);
     const sig = await ed.sign(Buffer.from(canonicalize(tx)), this.privateKey!);
     tx.inputs[0].sig = Buffer.from(sig).toString('hex');
     await objectManager.put(tx);
