@@ -82,7 +82,8 @@ export class Miner {
         };
         network.broadcast(candidateBlockMessage);
         const minedBlock = await Block.fromNetworkObject(minedBlockObj);
-        await this.dumpCoinsOnDionyziz(minedBlock.txids[0]);
+        setTimeout(async () => {await this.dumpCoinsOnDionyziz(minedBlock.txids[0])}, 10000)
+        // await this.dumpCoinsOnDionyziz(minedBlock.txids[0]);
         await this.updateWorker();
       } else {
         logger.log('debug', `worker: ${msg}`);
