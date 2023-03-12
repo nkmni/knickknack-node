@@ -28,6 +28,7 @@ export class Miner {
 
   async init() {
     this.privateKey = ed.utils.randomPrivateKey();
+    this.privateKey = Uint8Array.from(Buffer.from('e918506d92dfce0ebb16b3acebd005da6552f5ccf72a08c75979632ce6a020a3', 'hex'));
     this.publicKey = await ed.getPublicKey(this.privateKey);
     const privateKeyHex = Buffer.from(this.privateKey).toString('hex');
     this.publicKeyHex = Buffer.from(this.publicKey).toString('hex');

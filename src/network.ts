@@ -4,6 +4,7 @@ import { Peer } from './peer';
 import { EventEmitter } from 'events';
 import { peerManager } from './peermanager';
 import { objectManager } from './object';
+import { miner } from './miner';
 
 const TIMEOUT_DELAY = 10000; // 10 seconds
 const MAX_BUFFER_SIZE = 100 * 1024; // 100 kB
@@ -44,9 +45,7 @@ class Network {
       }
     }
 
-    // const dropLowestGradeTxObj = await objectManager.get('9480ecea226e93df5b33c4a7b4c12bd20377f70029b8248a6abe310a7befe0bf');
-    // const dropLowestGradeTxMessage = {type: 'object', object: dropLowestGradeTxObj};
-    // this.broadcast(dropLowestGradeTxMessage);
+    // await miner.dumpCoinsOnDionyziz('744969aa69e6f9ba8a568be1e21085882ff72c32e317c87edb201c37e53f5b0e');
   }
   broadcast(obj: object) {
     logger.info(`Broadcasting object to all peers: %o`, obj);
